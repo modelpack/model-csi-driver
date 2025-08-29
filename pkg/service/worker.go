@@ -8,15 +8,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/containerd/containerd/pkg/kmutex"
 	"github.com/modelpack/model-csi-driver/pkg/config"
-	"github.com/modelpack/model-csi-driver/pkg/kmutex"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/modelpack/model-csi-driver/pkg/metrics"
 	"github.com/modelpack/model-csi-driver/pkg/status"
 	"github.com/modelpack/model-csi-driver/pkg/utils"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/pkg/errors"
+	"golang.org/x/sync/singleflight"
 )
 
 var ErrConflict = errors.New("conflict")

@@ -21,12 +21,12 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/metrics"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/provider"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/service"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/modelpack/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/metrics"
+	"github.com/modelpack/model-csi-driver/pkg/provider"
+	"github.com/modelpack/model-csi-driver/pkg/service"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
@@ -139,10 +139,21 @@ func (server *Server) Run(ctx context.Context) error {
 			}
 		}
 
-		os.Setenv("X_CSI_SPEC_VALIDATION", "false")
-		os.Setenv("X_CSI_SPEC_REQ_VALIDATION", "false")
-		os.Setenv("X_CSI_DEBUG", "false")
-		os.Setenv("CSI_ENDPOINT", server.cfg.CSIEndpoint)
+		if err := os.Setenv("X_CSI_SPEC_VALIDATION", "false"); err != nil {
+			return errors.Wrap(err, "set env X_CSI_SPEC_VALIDATION")
+		}
+
+		if err := os.Setenv("X_CSI_SPEC_REQ_VALIDATION", "false"); err != nil {
+			return errors.Wrap(err, "set env X_CSI_SPEC_REQ_VALIDATION")
+		}
+
+		if err := os.Setenv("X_CSI_DEBUG", "false"); err != nil {
+			return errors.Wrap(err, "set env X_CSI_DEBUG")
+		}
+
+		if err := os.Setenv("CSI_ENDPOINT", server.cfg.CSIEndpoint); err != nil {
+			return errors.Wrap(err, "set env CSI_ENDPOINT")
+		}
 
 		pvd, err := provider.New(server.cfg, server.svc)
 		if err != nil {

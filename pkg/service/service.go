@@ -3,10 +3,10 @@ package service
 import (
 	"net/url"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/status"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/tracing"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/modelpack/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/status"
+	"github.com/modelpack/model-csi-driver/pkg/tracing"
 	"github.com/pkg/errors"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )

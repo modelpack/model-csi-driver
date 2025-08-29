@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"

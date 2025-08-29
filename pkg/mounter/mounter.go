@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
 	"github.com/moby/sys/mountinfo"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
 )
 

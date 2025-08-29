@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/service"
-	modelStatus "github.com/CloudNativeAI/model-csi-driver/pkg/status"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/labstack/echo/v4"
+	"github.com/modelpack/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/service"
+	modelStatus "github.com/modelpack/model-csi-driver/pkg/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

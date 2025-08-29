@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	// nolint
 	"github.com/containerd/containerd/reference/docker"
 )
 
@@ -17,11 +18,13 @@ type PassKeyChain struct {
 }
 
 func GetKeyChainByRef(ref string) (*PassKeyChain, error) {
+	// nolint
 	named, err := docker.ParseDockerRef(ref)
 	if err != nil {
 		return nil, errors.Wrapf(err, "parse ref %s", ref)
 	}
 
+	// nolint
 	return FromDockerConfig(docker.Domain(named))
 }
 
@@ -29,5 +32,6 @@ func (kc *PassKeyChain) ToBase64() string {
 	if kc.Username == "" && kc.Password == "" {
 		return ""
 	}
-	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", kc.Username, kc.Password)))
+
+	return base64.StdEncoding.EncodeToString(fmt.Appendf(nil, "%s:%s", kc.Username, kc.Password))
 }

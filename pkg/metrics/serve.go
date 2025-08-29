@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )

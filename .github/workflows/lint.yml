@@ -1,0 +1,26 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, release-*]
+  pull_request:
+    branches: [main, release-*]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          fetch-depth: '0'
+
+      - name: Golangci lint
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd
+        with:
+          version: v2.0

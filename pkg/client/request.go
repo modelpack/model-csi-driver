@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/service"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/status"
+	"github.com/modelpack/model-csi-driver/pkg/service"
+	"github.com/modelpack/model-csi-driver/pkg/status"
 )
 
 func (client *HTTPClient) CreateMount(ctx context.Context, volumeName, mountID, reference string, checkDiskQuota bool) (*status.Status, error) {

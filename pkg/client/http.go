@@ -74,7 +74,7 @@ func (client *HTTPClient) request(ctx context.Context, method, endpoint string, 
 	if err != nil {
 		return nil, errors.Wrap(err, "do request")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		msg, err := io.ReadAll(resp.Body)

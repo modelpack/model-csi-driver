@@ -16,9 +16,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/tracing"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/tracing"
 	"github.com/pkg/errors"
 )
 

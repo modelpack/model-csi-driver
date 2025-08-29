@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
 )
 

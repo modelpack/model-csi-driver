@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

@@ -21,12 +21,12 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/metrics"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/provider"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/service"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/modelpack/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/metrics"
+	"github.com/modelpack/model-csi-driver/pkg/provider"
+	"github.com/modelpack/model-csi-driver/pkg/service"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 

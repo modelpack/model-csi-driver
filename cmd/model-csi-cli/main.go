@@ -12,9 +12,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/client"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/status"
+	"github.com/modelpack/model-csi-driver/pkg/client"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/status"
 )
 
 var revision string

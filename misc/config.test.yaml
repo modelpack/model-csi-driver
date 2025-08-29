@@ -1,0 +1,28 @@
+# Unique service identifier of CSI registration.
+service_name: model.csi.example.com
+# Root working directory for model storage and metadata,
+# must be writable and have enough disk space.
+root_dir: /tmp/model-csi
+external_csi_endpoint: tcp://127.0.0.1:5243
+external_csi_authorization: secret_token
+dynamic_csi_endpoint: unix:///tmp/model-csi/dynamic/csi.sock
+# Primary CSI unix socket (used by kubelet/sidecars), typically
+# mounted into the pod via hostPath.
+csi_endpoint: unix:///tmp/model-csi/csi.sock
+metrics_addr: tcp://$POD_IP:5244
+trace_endpoint:
+pprof_addr: tcp://localhost:5245
+
+pull_config:
+  # Optional directory containing docker config auth (config.json),
+  # use /root/.docker/config.json by default.
+  docker_config_dir:
+  proxy_url: http://127.0.0.1:4001
+  # Maximum number of concurrent downloads (model layers).
+  concurrency: 5
+  # Per-layer download timeout in seconds, use 0 value to disable timeout.
+  pull_layer_timeout_in_seconds: 300
+  # dragonfly_endpoint: unix:///var/run/dragonfly/dfdaemon.sock
+
+features:
+  check_disk_quota: true

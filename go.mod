@@ -5,7 +5,6 @@ go 1.24.2
 require (
 	github.com/CloudNativeAI/modctl v0.0.4-rc.1
 	github.com/CloudNativeAI/model-spec v0.0.6
-	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/containerd/containerd v1.7.27
 	github.com/dustin/go-humanize v1.0.1
@@ -103,7 +102,6 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vbauerster/mpb/v8 v8.10.2 // indirect

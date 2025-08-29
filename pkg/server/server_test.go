@@ -207,7 +207,7 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 	// make mountpoint busy
 	file, err := os.Open(filepath.Join(cfg.RootDir, mountedDir, testFile))
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// mount the volume again with same volume id
 	_, err = nodeClient.PublishVolume(ctx, volumeID, targetPath)
@@ -282,6 +282,7 @@ func testDynamicVolume(t *testing.T, ctx context.Context, cfg *config.Config, se
 	dynamicHTTPClient, err := client.NewHTTPClient(fmt.Sprintf("unix://%s", targetCSISockPath))
 	require.NoError(t, err)
 	resp, err := dynamicHTTPClient.CreateMount(ctx, "csi-fake-1", "csi-fake-1-mount-1", testImage, false)
+	require.Nil(t, resp)
 	require.Error(t, err)
 
 	// create a dynamic mount
@@ -381,7 +382,7 @@ func testDynamicVolume(t *testing.T, ctx context.Context, cfg *config.Config, se
 	// make mountpoint busy
 	file, err := os.Open(testFilePath)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// delete the dynamic mount
 	err = dynamicHTTPClient.DeleteMount(ctx, volumeName, mountID)
@@ -548,12 +549,11 @@ func testDynamicConcurrentVolume(t *testing.T, cfg *config.Config, server *Serve
 }
 
 func TestServer(t *testing.T) {
-	os.Setenv("X_CSI_MODE", "node")
-	os.Setenv("CSI_NODE_ID", "test-node-id")
-
+	require.NoError(t, os.Setenv("X_CSI_MODE", "node"))
+	require.NoError(t, os.Setenv("CSI_NODE_ID", "test-node-id"))
 	rootDir, err := os.MkdirTemp("/tmp", "model-csi-driver")
 	require.NoError(t, err)
-	defer os.RemoveAll(rootDir)
+	defer func() { _ = os.RemoveAll(rootDir) }()
 
 	defaultCoofigPath := "../../misc/config.test.yaml"
 	configPathFromEnv := os.Getenv("CONFIG_PATH")

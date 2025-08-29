@@ -135,7 +135,7 @@ func FromDockerConfig(host string) (*PassKeyChain, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "open docker config file from %s", dockerConfigPath)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	config, err := loadFromReader(file)
 	if err != nil {

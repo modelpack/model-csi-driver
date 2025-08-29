@@ -159,7 +159,10 @@ func FromFile(path string) (*Config, error) {
 				cfg.PullConfig.DockerConfigDir = "/root/.docker"
 			}
 		}
-		os.Setenv("DOCKER_CONFIG", cfg.PullConfig.DockerConfigDir)
+
+		if err := os.Setenv("DOCKER_CONFIG", cfg.PullConfig.DockerConfigDir); err != nil {
+			return nil, errors.Wrap(err, "set DOCKER_CONFIG env")
+		}
 
 		if cfg.RootDir == "" {
 			return nil, errors.New("root_dir is required")

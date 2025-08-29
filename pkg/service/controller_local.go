@@ -164,6 +164,7 @@ func (s *Service) localDeleteVolume(ctx context.Context, req *csi.DeleteVolumeRe
 	return nil, isStaticVolume, status.Error(codes.InvalidArgument, "invalid volumeId format")
 }
 
+// nolint
 func (s *Service) localListVolumes(
 	ctx context.Context,
 	req *csi.ListVolumesRequest) (

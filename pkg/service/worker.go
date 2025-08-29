@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/kmutex"
 	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
 	"github.com/CloudNativeAI/model-csi-driver/pkg/metrics"
 	"github.com/CloudNativeAI/model-csi-driver/pkg/status"
 	"github.com/CloudNativeAI/model-csi-driver/pkg/utils"
+	"github.com/containerd/containerd/pkg/kmutex"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/pkg/errors"

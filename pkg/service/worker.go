@@ -78,7 +78,10 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 		logger.WithContext(ctx).Infof("canceled pulling request: %s", contextKey)
 	}
 	_, err, _ := worker.inflight.Do(inflightKey, func() (interface{}, error) {
-		worker.kmutex.Lock(context.Background(), contextKey)
+		if err := worker.kmutex.Lock(context.Background(), contextKey); err != nil {
+			return nil, errors.Wrapf(err, "lock context key: %s", contextKey)
+		}
+
 		defer worker.kmutex.Unlock(contextKey)
 
 		volumeDir := worker.cfg.GetVolumeDir(volumeName)
@@ -145,7 +148,9 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 	inflightKey := fmt.Sprintf("pull-%s/%s", volumeName, mountID)
 	contextKey := fmt.Sprintf("%s/%s", volumeName, mountID)
 	_, err, shared := worker.inflight.Do(inflightKey, func() (interface{}, error) {
-		worker.kmutex.Lock(context.Background(), contextKey)
+		if err := worker.kmutex.Lock(context.Background(), contextKey); err != nil {
+			return nil, errors.Wrapf(err, "lock context key: %s", contextKey)
+		}
 		defer worker.kmutex.Unlock(contextKey)
 
 		var cancel context.CancelFunc

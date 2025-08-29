@@ -103,7 +103,7 @@ func (s *Service) remoteCreateVolume(
 	if err != nil {
 		return nil, errors.Wrapf(err, "connect to grpc server: %s", addr)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := csi.NewControllerClient(conn)
 	resp, err := client.CreateVolume(ctx, &csi.CreateVolumeRequest{
@@ -180,7 +180,7 @@ func (s *Service) remoteDeleteVolume(
 	if err != nil {
 		return nil, errors.Wrapf(err, "connect to grpc server: %s", addr)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := csi.NewControllerClient(conn)
 	resp, err := client.DeleteVolume(ctx, &csi.DeleteVolumeRequest{

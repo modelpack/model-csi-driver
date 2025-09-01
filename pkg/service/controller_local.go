@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/tracing"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/tracing"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 	otelCodes "go.opentelemetry.io/otel/codes"
@@ -164,6 +164,7 @@ func (s *Service) localDeleteVolume(ctx context.Context, req *csi.DeleteVolumeRe
 	return nil, isStaticVolume, status.Error(codes.InvalidArgument, "invalid volumeId format")
 }
 
+// nolint
 func (s *Service) localListVolumes(
 	ctx context.Context,
 	req *csi.ListVolumesRequest) (

@@ -7,8 +7,8 @@ import (
 	"github.com/rexray/gocsi"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/service"
+	"github.com/modelpack/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/service"
 )
 
 // New returns a new CSI Storage Plug-in Provider.

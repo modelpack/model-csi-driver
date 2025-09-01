@@ -12,9 +12,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/client"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/status"
+	"github.com/modelpack/model-csi-driver/pkg/client"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/status"
 )
 
 var revision string
@@ -141,11 +141,19 @@ func main() {
 					}
 
 					tw := tabwriter.NewWriter(os.Stdout, 1, 8, 1, '\t', 0)
-					fmt.Fprintf(tw, "%s\t%s\t%s\n", "Mount ID", "Reference", "State")
-					for _, mount := range mounts {
-						fmt.Fprintf(tw, "%s\t%s\t%s\n", mount.MountID, mount.Reference, mount.State)
+					if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\n", "Mount ID", "Reference", "State"); err != nil {
+						return errors.Wrap(err, "write header")
 					}
-					tw.Flush()
+
+					for _, mount := range mounts {
+						if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\n", mount.MountID, mount.Reference, mount.State); err != nil {
+							return errors.Wrap(err, "write mount")
+						}
+					}
+
+					if err := tw.Flush(); err != nil {
+						return errors.Wrap(err, "flush output")
+					}
 
 					return nil
 				},

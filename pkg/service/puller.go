@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CloudNativeAI/modctl/pkg/backend"
-	modctlConfig "github.com/CloudNativeAI/modctl/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/config/auth"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/metrics"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/status"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/tracing"
-	modelspec "github.com/CloudNativeAI/model-spec/specs-go/v1"
 	"github.com/dustin/go-humanize"
+	"github.com/modelpack/modctl/pkg/backend"
+	modctlConfig "github.com/modelpack/modctl/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/config/auth"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/metrics"
+	"github.com/modelpack/model-csi-driver/pkg/status"
+	"github.com/modelpack/model-csi-driver/pkg/tracing"
+	modelspec "github.com/modelpack/model-spec/specs-go/v1"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -256,11 +256,18 @@ func (p *puller) checkDiskQuota(ctx context.Context, reference, dir string, plai
 		availSpace := int64(st.Bavail) * int64(st.Bsize)
 		logger.WithContext(ctx).Infof("cache dir available space: %s", humanize.IBytes(uint64(availSpace)))
 		// get model image size
-		modelArtifact, err := b.Inspect(ctx, reference, &modctlConfig.Inspect{Remote: true, Insecure: true, PlainHTTP: plainHTTP})
+		result, err := b.Inspect(ctx, reference, &modctlConfig.Inspect{Remote: true, Insecure: true, PlainHTTP: plainHTTP})
 		if err != nil {
 			logger.WithContext(ctx).WithError(err).Errorf("failed to inspect model image: %s", reference)
 			return errors.Wrap(err, "inspect model image")
 		}
+
+		modelArtifact, ok := result.(*backend.InspectedModelArtifact)
+		if !ok {
+			logger.WithContext(ctx).Errorf("invalid inspected result: %s", result)
+			return fmt.Errorf("invalid inspected result")
+		}
+
 		totalSize := int64(0)
 		for _, layer := range modelArtifact.Layers {
 			totalSize += layer.Size

@@ -21,8 +21,8 @@ release:
 	@CGO_ENABLED=0 ${PROXY} GOOS=linux GOARCH=${GOARCH} go build -tags disable_libgit2 -ldflags '${RELEASE_INFO} -w -extldflags "-static"' -o ./ ./cmd/model-csi-cli
 
 test:
-	@CGO_ENABLED=1 go test -tags disable_libgit2 -coverprofile cover.out.tmp -race -v -timeout 10m github.com/CloudNativeAI/model-csi-driver/pkg/server | tee coverage.log
+	@CGO_ENABLED=1 go test -tags disable_libgit2 -coverprofile cover.out.tmp -race -v -timeout 10m github.com/modelpack/model-csi-driver/pkg/server | tee coverage.log
 
 test-local:
-	go test -tags disable_libgit2 -race -c -o ./unit.test github.com/CloudNativeAI/model-csi-driver/pkg/server
+	go test -tags disable_libgit2 -race -c -o ./unit.test github.com/modelpack/model-csi-driver/pkg/server
 	sudo CONFIG_PATH=./misc/config.test.yaml ./unit.test -test.timeout 1h -test.v -test.run ^TestServer$

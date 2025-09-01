@@ -48,6 +48,7 @@ func getNodeInfo(node *corev1.Node) (*nodeInfo, error) {
 		return nil, fmt.Errorf("node internal ip not exist")
 	}
 
+	// nolint:staticcheck
 	hostname, ok = node.ObjectMeta.Labels[labelHostname]
 	if !ok {
 		return nil, fmt.Errorf("node hostname not exist")

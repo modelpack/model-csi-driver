@@ -15,10 +15,10 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/pkg/errors"
 
-	"github.com/CloudNativeAI/model-csi-driver/pkg/logger"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/metrics"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/mounter"
-	"github.com/CloudNativeAI/model-csi-driver/pkg/tracing"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
+	"github.com/modelpack/model-csi-driver/pkg/metrics"
+	"github.com/modelpack/model-csi-driver/pkg/mounter"
+	"github.com/modelpack/model-csi-driver/pkg/tracing"
 )
 
 func (s *Service) NodeStageVolume(

@@ -25,4 +25,4 @@ test:
 
 test-local:
 	go test -tags disable_libgit2 -race -c -o ./unit.test github.com/modelpack/model-csi-driver/pkg/server
-	sudo CONFIG_PATH=./misc/config.test.yaml ./unit.test -test.timeout 1h -test.v -test.run ^TestServer$
+	sudo CONFIG_PATH=./test/testdata/config.test.yaml ./unit.test -test.timeout 1h -test.v -test.run ^TestServer$

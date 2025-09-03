@@ -1,0 +1,11 @@
+FROM golang:1.24 AS builder
+WORKDIR /app
+
+COPY . .
+RUN --mount=type=cache,target=$HOME/.cache/go-build \
+  --mount=type=cache,target=$HOME/go/pkg/mod \
+  make release
+
+FROM ubuntu:24.04
+COPY --from=builder /app/model-csi-driver /usr/bin/model-csi-driver
+ENTRYPOINT ["/usr/bin/model-csi-driver"]

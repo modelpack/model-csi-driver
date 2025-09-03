@@ -1,0 +1,107 @@
+name: Run E2E Test
+
+on:
+  push:
+    branches: [main, release-*]
+    paths-ignore: ['**.md', '**.png', '**.jpg', '**.svg', '**/docs/**']
+  pull_request:
+    branches: [main, release-*]
+    paths-ignore: ['**.md', '**.png', '**.jpg', '**.svg', '**/docs/**']
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  run-e2e-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-buildx-
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: build/Dockerfile.test
+          build-args: |
+            HOME=${{ env.HOME }}
+          tags: model-csi-driver:latest
+          load: true
+          push: false
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
+      - name: Move Docker Build Cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+
+      - name: Install Kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Create Kind Cluster
+        run: |
+          kind create cluster --wait 120s
+
+      - name: Load docker image into kind
+        run: |
+          kind load docker-image model-csi-driver:latest
+
+      - name: Load docker image into kind
+        run: |
+          kind load docker-image model-csi-driver:latest
+
+      - name: Install Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Check cluster and helm
+        run: |
+          kubectl get nodes
+          kubectl cluster-info
+          helm version
+
+      - name: Deploy model-csi-driver chart
+        run: |
+          helm upgrade --install model-csi-driver ./charts/model-csi-driver --namespace model-csi --create-namespace
+
+      - name: Wait for model-csi-driver pods to be ready
+        run: |
+          kubectl wait --for=condition=Ready pods --all --namespace model-csi --timeout=120s
+      
+      - name: Run Test Pod
+        run: |
+          kubectl apply -f test/testdata/pod.test.yaml
+          kubectl wait --for=condition=Ready pod/model-csi-driver-test --timeout=120s
+          kubectl delete pod model-csi-driver-test
+
+      # # Keep for debug purpose
+      # - name: Start tmate session
+      #   uses: mxschmitt/action-tmate@v3

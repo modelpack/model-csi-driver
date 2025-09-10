@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  namespace: {{ .Values.namespace }}
+  name: {{ include "model-csi-driver.fullname" . }}
+  labels:
+    {{- include "model-csi-driver.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "model-csi-driver.selectorLabels" . | nindent 6 }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "model-csi-driver.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      priorityClassName: system-node-critical
+      serviceAccountName: model-csi-driver
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.hostNetwork }}
+      hostNetwork: {{ .Values.hostNetwork }}
+      {{- end }}
+      containers:
+        - name: model-csi-driver-registrar
+          image: "{{ .Values.registrar.image.repository }}:{{ .Values.registrar.image.tag }}"
+          imagePullPolicy: {{ .Values.registrar.image.pullPolicy | default "IfNotPresent" }}
+          args:
+            - "--v=5"
+            - "--csi-address=/csi/csi.sock"
+            - "--kubelet-registration-path=/var/lib/kubelet/plugins/{{ .Values.config.serviceName }}/csi.sock"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          livenessProbe:
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=/var/lib/kubelet/plugins/{{ .Values.config.serviceName }}/csi.sock
+              - --mode=kubelet-registration-probe
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: 256Mi
+              ephemeral-storage: 1Gi
+            requests:
+              cpu: 0
+              memory: 0
+              ephemeral-storage: 0
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command:
+          - /usr/bin/model-csi-driver
+          - --config
+          - /etc/model-csi-driver/config.yaml
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+              - stat
+              - /csi/csi.sock
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          env:
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: X_CSI_MODE
+            value: node
+          - name: CSI_NODE_ID
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - mountPath: {{ .Values.config.rootDir }}
+              name: root-dir
+              mountPropagation: "Bidirectional"
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: "Bidirectional"
+            - mountPath: /etc/model-csi-driver
+              name: config-dir
+              readOnly: true
+            - mountPath: /root/.docker
+              name: docker-config-dir
+              readOnly: true
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/{{ .Values.config.serviceName }}
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        - name: root-dir
+          hostPath:
+            path: {{ .Values.config.rootDir }}
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: config-dir
+          configMap:
+            defaultMode: 420
+            name: config
+        - name: docker-config-dir
+          configMap:
+            defaultMode: 420
+            name: docker-config
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}

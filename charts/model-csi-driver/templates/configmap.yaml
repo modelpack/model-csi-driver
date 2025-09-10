@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: model-csi
+data:
+  config.yaml: |-
+    service_name: {{ .Values.config.serviceName }}
+    root_dir: {{ .Values.config.rootDir }}
+    csi_endpoint: unix:///csi/csi.sock

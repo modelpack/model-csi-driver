@@ -1,0 +1,48 @@
+# Default values for model-csi-driver.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+config:
+  # Unique service identifier of CSI registration
+  serviceName: model.csi.modelpack.org
+  # Root working directory for model storage and metadata,
+  # must be writable and have enough disk space
+  rootDir: /var/lib/model-csi
+  registryAuths:
+    # Registry host:port
+    example.com:
+      # Based64 encoded username:password
+      auth: dXNlcm5hbWU6cGFzc3dvcmQ=
+      # Registry server scheme, http or https
+      serverscheme: https
+
+namespace: model-csi
+
+image:
+  repository: model-csi-driver
+  pullPolicy: IfNotPresent
+  tag: latest
+
+registrar:
+  image:
+    repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
+    pullPolicy: IfNotPresent
+    tag: v2.5.0
+
+resources:
+  limits:
+    cpu: 1
+    memory: 1Gi
+    ephemeral-storage: 1Gi
+  requests:
+    cpu: 0
+    memory: 0
+    ephemeral-storage: 0
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

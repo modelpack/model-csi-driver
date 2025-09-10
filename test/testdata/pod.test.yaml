@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: model-csi-driver-test
+spec:
+  restartPolicy: Never
+  containers:
+  - name: main
+    image: ubuntu:24.04
+    command:
+    - sh
+    - -c
+    - |
+      if [ "$(ls -A /root/model)" ]; then
+        echo "model files are present in /root/model"
+        sleep infinity
+      else
+        echo "no model files found in /root/model"
+        exit 1
+      fi
+    volumeMounts:
+      - name: model-volume
+        mountPath: /root/model
+        readOnly: true
+  volumes:
+  - name: model-volume
+    csi:
+      driver: model.csi.modelpack.org
+      volumeAttributes:
+        "model.csi.modelpack.org/reference": "ghcr.io/modelpack/qwen/qwen3-0.6b:latest"

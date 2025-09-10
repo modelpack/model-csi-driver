@@ -555,7 +555,7 @@ func TestServer(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = os.RemoveAll(rootDir) }()
 
-	defaultCoofigPath := "../../misc/config.test.yaml"
+	defaultCoofigPath := "../../test/testdata/config.test.yaml"
 	configPathFromEnv := os.Getenv("CONFIG_PATH")
 	if configPathFromEnv != "" {
 		defaultCoofigPath = configPathFromEnv

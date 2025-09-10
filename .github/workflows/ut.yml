@@ -1,0 +1,36 @@
+name: Run Unit Test
+
+on:
+  push:
+    branches: [main, release-*]
+    paths-ignore: ['**.md', '**.png', '**.jpg', '**.svg', '**/docs/**']
+  pull_request:
+    branches: [main, release-*]
+    paths-ignore: ['**.md', '**.png', '**.jpg', '**.svg', '**/docs/**']
+  schedule:
+    - cron: '0 4 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  run-unit-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run Unit tests
+        run: |-
+          sudo make test

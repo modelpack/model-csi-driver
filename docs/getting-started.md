@@ -4,39 +4,32 @@ Model CSI Driver is a Kubernetes CSI driver for serving OCI model artifacts, whi
 
 ## Overview
 
-The Model CSI Driver enables efficient deployment of model in Kubernetes by:
+The Model CSI Driver simplifies and accelerates model deployment in Kubernetes by:
 
-- Easily mount model artifact as volume into pod
-- Compatibility with older Kubernetes versions
-- Natively supports P2P accelerated distribution
+- Seamlessly mount model artifacts as volumes into pod
+- Compatible with older Kubernetes versions
+- Natively supports P2P-accelerated distribution
 
 ## Prerequisites
 
 Before getting started, ensure you have:
 
-- Kubernetes cluster (v1.20+)
-- `kubectl` configured to access your cluster
+- `kubectl` configured to access your Kubernetes cluster
 - Helm v3.x (recommended for installation)
-- Container runtime with CSI support (containerd, CRI-O)
 
 ## Installation
 
 ### Helm Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/your-org/model-csi-driver.git
-cd model-csi-driver
-```
-
-2. Create custom configuration:
+1. Create custom configuration:
 
 ```yaml
 # values-custom.yaml
 config:
   # Root working directory for model storage and metadata,
-  # must be writable and have enough disk space for model storage
+  # must be writable and have enough disk space
   rootDir: /var/lib/model-csi
+  # Configuration for private registry auth
   registryAuths:
     # Registry host:port
     registry.example.com:
@@ -44,26 +37,36 @@ config:
       auth: dXNlcm5hbWU6cGFzc3dvcmQ=
       # Registry server scheme, http or https
       serverscheme: https
+image:
+  # Model csi driver daemonset image
+  repository: ghcr.io/modelpack/model-csi-driver
+  pullPolicy: IfNotPresent
+  tag: latest
 ```
 
-3. Install the driver using Helm:
+2. Install the driver using Helm:
 ```bash
-helm install model-csi-driver ./charts/model-csi-driver \
+helm upgrade --install model-csi-driver \
+    oci://ghcr.io/modelpack/charts/model-csi-driver \
     --namespace model-csi \
     --create-namespace \
     -f values-custom.yaml
 ```
 
-4. Verify the installation:
+3. Verify the installation:
 ```bash
 kubectl get pods -n model-csi
 ```
 
 ## Basic Usage
 
+### Create Model Artifact with modctl
+
+Follow the [guide](https://github.com/modelpack/modctl/blob/main/docs/getting-started.md) to build and push a model artifact to an OCI distribution-compatible registry.
+
 ### Create a Pod with Model Volume
 
-The Model CSI Driver uses inline volumes directly in pod specifications. Here's a basic example:
+The Model CSI Driver uses inline volume directly in pod spec, here's a basic example:
 
 ```yaml
 apiVersion: v1
@@ -84,14 +87,12 @@ spec:
     csi:
       driver: model.csi.modelpack.org
       volumeAttributes:
-        modelRef: "registry.example.com/models/bert-base:latest"
+        modelRef: "registry.example.com/models/qwen3-0.6b:latest"
 ```
 
 ## Troubleshooting
 
-### Common Issues
-
-**Pod stuck in Pending or ContainerCreating**
+### Pod stuck in Pending or ContainerCreating
   ```bash
   # Describe a pod with issues
   kubectl describe pod <pod-name>

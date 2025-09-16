@@ -6,15 +6,12 @@ config:
   # Unique service identifier of CSI registration
   serviceName: model.csi.modelpack.org
   # Root working directory for model storage and metadata,
-  # must be writable and have enough disk space for model storage
+  # must be writable and have enough disk space
   rootDir: /var/lib/model-csi
   registryAuths:
-    # Registry host:port
-    registry.example.com:
-      # Based64 encoded username:password
-      auth: dXNlcm5hbWU6cGFzc3dvcmQ=
-      # Registry server scheme, http or https
-      serverscheme: https
+    # registry.example.com:
+    #   auth: dXNlcm5hbWU6cGFzc3dvcmQ=
+    #   serverscheme: https
 
 namespace: model-csi
 

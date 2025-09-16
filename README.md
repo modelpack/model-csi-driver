@@ -1,8 +1,10 @@
 # Model CSI Driver
 
-**Status**: 🚧 This project is actively developed, the CI setup and documentation are still in progress.
-
 Model CSI Driver is a Kubernetes CSI driver for serving OCI model artifacts, which are bundled based on [Model Spec](https://github.com/modelpack/model-spec).
+
+## Documentation
+
+You can find the full documentation on the [getting started](./docs/getting-started.md).
 
 ## Copyright
 

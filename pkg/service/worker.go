@@ -52,7 +52,7 @@ func (cm *ContextMap) Get(key string) *context.CancelFunc {
 
 type Worker struct {
 	cfg        *config.Config
-	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook) Puller
+	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook, diskQuotaChecker *DiskQuotaChecker) Puller
 	sm         *status.StatusManager
 	inflight   singleflight.Group
 	contextMap *ContextMap
@@ -178,13 +178,17 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 				logger.WithContext(ctx).WithError(err).Errorf("set model status: %v", err)
 			}
 		})
+		var diskQuotaChecker *DiskQuotaChecker
 		checkDiskQuota := worker.cfg.Features.CheckDiskQuota && checkDiskQuota && !worker.isModelExisted(ctx, reference)
-		puller := worker.newPuller(ctx, &worker.cfg.PullConfig, hook)
+		if checkDiskQuota {
+			diskQuotaChecker = NewDiskQuotaChecker(worker.cfg)
+		}
+		puller := worker.newPuller(ctx, &worker.cfg.PullConfig, hook, diskQuotaChecker)
 		_, err := setStatus(status.StatePullRunning, hook.GetProgress())
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")
 		}
-		if err := puller.Pull(ctx, reference, modelDir, checkDiskQuota); err != nil {
+		if err := puller.Pull(ctx, reference, modelDir); err != nil {
 			if errors.Is(err, context.Canceled) {
 				err = errors.Wrapf(err, "pull model canceled")
 				if _, err2 := setStatus(status.StatePullCanceled, hook.GetProgress()); err2 != nil {

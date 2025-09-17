@@ -5,9 +5,28 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
+
+type HumanizeSize uint64
+
+func (s *HumanizeSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	size, err := humanize.ParseBytes(str)
+	if err != nil {
+		return err
+	}
+
+	*s = HumanizeSize(size)
+
+	return nil
+}
 
 type Config struct {
 	// Pattern:
@@ -28,8 +47,10 @@ type Config struct {
 	NodeID                   string     // From env CSI_NODE_ID
 	Mode                     string     // From env X_CSI_MODE: "controller" or "node"
 }
+
 type Features struct {
-	CheckDiskQuota bool `yaml:"check_disk_quota"`
+	CheckDiskQuota bool         `yaml:"check_disk_quota"`
+	DiskUsageLimit HumanizeSize `yaml:"disk_usage_limit"`
 }
 
 type PullConfig struct {
@@ -116,7 +137,7 @@ func (cfg *Config) IsNodeMode() bool {
 	return cfg.Mode == "node"
 }
 
-func FromFile(path string) (*Config, error) {
+func parse(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "read config file")
@@ -183,4 +204,15 @@ func FromFile(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func New(path string) (*Config, error) {
+	cfg, err := parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	go cfg.watch(path)
+
+	return cfg, nil
 }

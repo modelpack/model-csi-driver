@@ -40,7 +40,7 @@ type mockPuller struct {
 	hook     *service.Hook
 }
 
-func (puller *mockPuller) Pull(ctx context.Context, reference, targetDir string, checkDiskQuota bool) error {
+func (puller *mockPuller) Pull(ctx context.Context, reference, targetDir string) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}
@@ -560,13 +560,13 @@ func TestServer(t *testing.T) {
 	if configPathFromEnv != "" {
 		defaultCoofigPath = configPathFromEnv
 	}
-	cfg, err := config.FromFile(defaultCoofigPath)
+	cfg, err := config.New(defaultCoofigPath)
 	require.NoError(t, err)
 	cfg.RootDir = rootDir
 	cfg.PullConfig.ProxyURL = ""
 	service.CacheSacnInterval = 1 * time.Second
 
-	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *service.Hook) service.Puller {
+	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *service.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
 		return &mockPuller{
 			pullCfg:  pullCfg,
 			duration: time.Second * 2,

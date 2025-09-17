@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -52,19 +50,21 @@ func NewHook(ctx context.Context, progressCb func(progress status.Progress)) *Ho
 }
 
 type Puller interface {
-	Pull(ctx context.Context, reference, targetDir string, checkDiskQuota bool) error
+	Pull(ctx context.Context, reference, targetDir string) error
 }
 
-var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook) Puller {
+var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
 	return &puller{
-		pullCfg: pullCfg,
-		hook:    hook,
+		pullCfg:          pullCfg,
+		hook:             hook,
+		diskQuotaChecker: diskQuotaChecker,
 	}
 }
 
 type puller struct {
-	pullCfg *config.PullConfig
-	hook    *Hook
+	pullCfg          *config.PullConfig
+	hook             *Hook
+	diskQuotaChecker *DiskQuotaChecker
 }
 
 func (h *Hook) getProgressDesc() string {
@@ -201,7 +201,7 @@ func (h *Hook) GetProgress() status.Progress {
 	return h.getProgress()
 }
 
-func (p *puller) Pull(ctx context.Context, reference, targetDir string, checkDiskQuota bool) error {
+func (p *puller) Pull(ctx context.Context, reference, targetDir string) error {
 	keyChain, err := auth.GetKeyChainByRef(reference)
 	if err != nil {
 		return errors.Wrapf(err, "get auth for model: %s", reference)
@@ -212,9 +212,10 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, checkDis
 		return errors.Wrap(err, "create modctl backend")
 	}
 
-	if checkDiskQuota {
-		if err := p.checkDiskQuota(ctx, reference, filepath.Dir(targetDir), keyChain.ServerScheme == "http", b); err != nil {
-			return err
+	if p.diskQuotaChecker != nil {
+		plainHTTP := keyChain.ServerScheme == "http"
+		if err := p.diskQuotaChecker.Check(ctx, b, reference, plainHTTP); err != nil {
+			return errors.Wrap(err, "check disk quota")
 		}
 	}
 
@@ -245,36 +246,5 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, checkDis
 		return errors.Wrap(err, "pull model image")
 	}
 
-	return nil
-}
-
-func (p *puller) checkDiskQuota(ctx context.Context, reference, dir string, plainHTTP bool, b backend.Backend) error {
-	var st syscall.Statfs_t
-	if err := syscall.Statfs(dir, &st); err != nil {
-		logger.WithContext(ctx).WithError(err).Errorf("failed to stat dir %s in mounting %s", dir, reference)
-	} else {
-		availSpace := int64(st.Bavail) * int64(st.Bsize)
-		logger.WithContext(ctx).Infof("cache dir available space: %s", humanize.IBytes(uint64(availSpace)))
-		// get model image size
-		result, err := b.Inspect(ctx, reference, &modctlConfig.Inspect{Remote: true, Insecure: true, PlainHTTP: plainHTTP})
-		if err != nil {
-			logger.WithContext(ctx).WithError(err).Errorf("failed to inspect model image: %s", reference)
-			return errors.Wrap(err, "inspect model image")
-		}
-
-		modelArtifact, ok := result.(*backend.InspectedModelArtifact)
-		if !ok {
-			logger.WithContext(ctx).Errorf("invalid inspected result: %s", result)
-			return fmt.Errorf("invalid inspected result")
-		}
-
-		totalSize := int64(0)
-		for _, layer := range modelArtifact.Layers {
-			totalSize += layer.Size
-		}
-		if totalSize > availSpace {
-			return errors.Wrapf(syscall.ENOSPC, "model image %s is %s, but only %s of disk quota is available", reference, humanize.IBytes(uint64(totalSize)), humanize.IBytes(uint64(availSpace)))
-		}
-	}
 	return nil
 }

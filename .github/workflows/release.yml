@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+      CHART_NAME: model-csi-driver
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-buildx-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract tag name (version)
+        id: extract_tag
+        run: echo "tag=${GITHUB_REF##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./build/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.extract_tag.outputs.tag }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
+      - name: Move Docker Build Cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+
+      - name: Install Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Update chart version
+        run: |
+          TAG=$(echo ${{ steps.extract_tag.outputs.tag }} | sed 's/^v//')
+          sed -i "s/VERSION/${TAG}/g" charts/${CHART_NAME}/Chart.yaml
+
+      - name: Helm registry login
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io --username ${{ github.actor }} --password-stdin
+
+      - name: Helm package chart
+        run: |
+          helm package charts/${CHART_NAME} --destination .
+      
+      - name: Helm push chart to GHCR
+        run: |
+          CHART_VERSION=$(yq e '.version' charts/${CHART_NAME}/Chart.yaml)
+          CHART_PKG=${CHART_NAME}-${CHART_VERSION}.tgz
+          helm push $CHART_PKG oci://ghcr.io/${{ github.repository_owner }}/charts

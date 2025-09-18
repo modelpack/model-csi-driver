@@ -28,7 +28,7 @@ func New(cfg *config.Config, svc *service.Service) (gocsi.StoragePluginProvider,
 			sp *gocsi.StoragePlugin,
 			lis net.Listener) error {
 
-			log.WithField("service", cfg.ServiceName).Debug("BeforeServe")
+			log.WithField("service", cfg.Get().ServiceName).Debug("BeforeServe")
 			return nil
 		},
 

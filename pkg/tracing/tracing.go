@@ -20,14 +20,14 @@ import (
 var Tracer trace.Tracer
 
 func Init(cfg *config.Config) error {
-	if cfg.TraceEndpooint != "" {
-		logrus.Infof("initializing otel trace on %s", cfg.TraceEndpooint)
+	if cfg.Get().TraceEndpoint != "" {
+		logrus.Infof("initializing otel trace on %s", cfg.Get().TraceEndpoint)
 	}
-	_, err := setupOTelSDK(context.Background(), cfg.TraceEndpooint)
+	_, err := setupOTelSDK(context.Background(), cfg.Get().TraceEndpoint)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize OpenTelemetry SDK")
 	}
-	Tracer = otel.Tracer(cfg.ServiceName + "/otel/model")
+	Tracer = otel.Tracer(cfg.Get().ServiceName + "/otel/model")
 	return nil
 }
 

@@ -34,9 +34,9 @@ type ErrorResponse struct {
 func NewHTTPServer(cfg *config.Config, svc *service.Service) (*HttpServer, error) {
 	echo := echo.New()
 
-	endpoint, err := url.Parse(cfg.DynamicCSIEndpoint)
+	endpoint, err := url.Parse(cfg.Get().DynamicCSIEndpoint)
 	if err != nil {
-		return nil, errors.Wrapf(err, "parse dynamic csi endpoint: %s", cfg.DynamicCSIEndpoint)
+		return nil, errors.Wrapf(err, "parse dynamic csi endpoint: %s", cfg.Get().DynamicCSIEndpoint)
 	}
 
 	listener, err := net.Listen("unix", endpoint.Path)

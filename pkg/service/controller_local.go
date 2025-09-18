@@ -29,10 +29,10 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 		parameters = map[string]string{}
 	}
 
-	modelType := strings.TrimSpace(parameters[s.cfg.ParameterKeyType()])
-	modelReference := strings.TrimSpace(parameters[s.cfg.ParameterKeyReference()])
-	mountID := strings.TrimSpace(parameters[s.cfg.ParameterKeyMountID()])
-	checkDiskQuotaParam := strings.TrimSpace(parameters[s.cfg.ParameterKeyCheckDiskQuota()])
+	modelType := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyType()])
+	modelReference := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyReference()])
+	mountID := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyMountID()])
+	checkDiskQuotaParam := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyCheckDiskQuota()])
 	isStaticVolume := mountID == ""
 
 	if volumeName == "" {
@@ -40,11 +40,11 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 	}
 
 	if modelType == "" {
-		return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "missing required parameter: %s", s.cfg.ParameterKeyType())
+		return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "missing required parameter: %s", s.cfg.Get().ParameterKeyType())
 	}
 
 	if modelReference == "" {
-		return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "missing required parameter: %s", s.cfg.ParameterKeyReference())
+		return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "missing required parameter: %s", s.cfg.Get().ParameterKeyReference())
 	}
 
 	if modelType != "image" {
@@ -55,7 +55,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 		var err error
 		checkDiskQuota, err = strconv.ParseBool(checkDiskQuotaParam)
 		if err != nil {
-			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.ParameterKeyCheckDiskQuota(), err)
+			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyCheckDiskQuota(), err)
 		}
 	}
 
@@ -65,7 +65,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 	parentSpan.SetAttributes(attribute.Bool("static_volume", isStaticVolume))
 
 	if isStaticVolume {
-		modelDir := s.cfg.GetModelDir(volumeName)
+		modelDir := s.cfg.Get().GetModelDir(volumeName)
 		startedAt := time.Now()
 		ctx, span := tracing.Tracer.Start(ctx, "PullModel")
 		span.SetAttributes(attribute.String("model_dir", modelDir))
@@ -90,7 +90,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 		}, isStaticVolume, nil
 	}
 
-	volumeDir := s.cfg.GetVolumeDirForDynamic(volumeName)
+	volumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
 	if _, err := os.Stat(volumeDir); err != nil {
 		if os.IsNotExist(err) {
 			return nil, isStaticVolume, status.Error(codes.Internal, fmt.Sprintf("volume directory does not exist: %s", volumeDir))
@@ -98,7 +98,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 		return nil, isStaticVolume, status.Error(codes.Internal, errors.Wrapf(err, "stat volume directory: %s", volumeDir).Error())
 	}
 
-	modelDir := s.cfg.GetModelDirForDynamic(volumeName, mountID)
+	modelDir := s.cfg.Get().GetModelDirForDynamic(volumeName, mountID)
 	startedAt := time.Now()
 	ctx, span := tracing.Tracer.Start(ctx, "PullModel")
 	span.SetAttributes(attribute.String("model_dir", modelDir))
@@ -169,7 +169,7 @@ func (s *Service) localListVolumes(
 	ctx context.Context,
 	req *csi.ListVolumesRequest) (
 	*csi.ListVolumesResponse, error) {
-	volumesDir := s.cfg.GetVolumesDir()
+	volumesDir := s.cfg.Get().GetVolumesDir()
 
 	getEntryByVolumeName := func(volumeName string) (*csi.ListVolumesResponse_Entry, error) {
 		statusPath := filepath.Join(volumesDir, volumeName, "status.json")
@@ -190,9 +190,9 @@ func (s *Service) localListVolumes(
 			Volume: &csi.Volume{
 				VolumeId: modelStatus.VolumeName,
 				VolumeContext: map[string]string{
-					s.cfg.ParameterKeyReference():      modelStatus.Reference,
-					s.cfg.ParameterKeyStatusState():    modelStatus.State,
-					s.cfg.ParameterKeyStatusProgress(): progress,
+					s.cfg.Get().ParameterKeyReference():      modelStatus.Reference,
+					s.cfg.Get().ParameterKeyStatusState():    modelStatus.State,
+					s.cfg.Get().ParameterKeyStatusProgress(): progress,
 				},
 			},
 		}, nil

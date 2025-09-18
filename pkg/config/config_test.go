@@ -50,5 +50,5 @@ func TestConfig(t *testing.T) {
 	time.Sleep(time.Second * 1)
 
 	// Verify the config is reloaded
-	require.Equal(t, uint64(0x50000000000), uint64(cfg.Features.DiskUsageLimit))
+	require.Equal(t, uint64(0x50000000000), uint64(cfg.Get().Features.DiskUsageLimit))
 }

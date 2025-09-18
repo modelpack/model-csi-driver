@@ -48,18 +48,3 @@ func (cfg *Config) watch(path string) {
 
 	select {}
 }
-
-func (cfg *Config) reload(path string) {
-	newCfg, err := parse(path)
-	if err != nil {
-		logger.Logger().WithError(err).Error("failed to parse config file")
-		return
-	}
-
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	*cfg = *newCfg
-
-	logger.Logger().Infof("config reloaded: %s", path)
-}

@@ -97,15 +97,15 @@ func humanizeBytes(size int64) string {
 func (d *DiskQuotaChecker) Check(ctx context.Context, b backend.Backend, reference string, plainHTTP bool) error {
 	availSize := int64(0)
 
-	if d.cfg.Features.DiskUsageLimit > 0 {
-		usedSize, err := getUsedSize(d.cfg.RootDir)
+	if d.cfg.Get().Features.DiskUsageLimit > 0 {
+		usedSize, err := getUsedSize(d.cfg.Get().RootDir)
 		if err != nil {
 			return errors.Wrap(err, "get root dir used size")
 		}
-		availSize = int64(d.cfg.Features.DiskUsageLimit) - usedSize
+		availSize = int64(d.cfg.Get().Features.DiskUsageLimit) - usedSize
 	} else {
 		var st syscall.Statfs_t
-		if err := syscall.Statfs(d.cfg.RootDir, &st); err != nil {
+		if err := syscall.Statfs(d.cfg.Get().RootDir, &st); err != nil {
 			return errors.Wrap(err, "stat root dir")
 		}
 		availSize = int64(st.Bavail) * int64(st.Bsize)
@@ -118,7 +118,7 @@ func (d *DiskQuotaChecker) Check(ctx context.Context, b backend.Backend, referen
 
 	logger.WithContext(ctx).Infof(
 		"root dir maximum limit size: %s, available: %s, model: %s",
-		humanizeBytes(int64(d.cfg.Features.DiskUsageLimit)), humanizeBytes(availSize), humanizeBytes(modelSize),
+		humanizeBytes(int64(d.cfg.Get().Features.DiskUsageLimit)), humanizeBytes(availSize), humanizeBytes(modelSize),
 	)
 
 	if modelSize > availSize {

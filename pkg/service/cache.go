@@ -19,7 +19,7 @@ type CacheManager struct {
 
 func (cm *CacheManager) getCacheSize() (int64, error) {
 	var total int64
-	if err := filepath.Walk(cm.cfg.RootDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(cm.cfg.Get().RootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -37,7 +37,7 @@ func (cm *CacheManager) getCacheSize() (int64, error) {
 func (cm *CacheManager) scanModels() error {
 	staticModels := 0
 	dynamicModels := 0
-	volumesDir := cm.cfg.GetVolumesDir()
+	volumesDir := cm.cfg.Get().GetVolumesDir()
 	volumeDirs, err := os.ReadDir(volumesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -53,7 +53,7 @@ func (cm *CacheManager) scanModels() error {
 			staticModels += 1
 		}
 		if isDynamicVolume(volumeDir.Name()) {
-			modelsDir := cm.cfg.GetModelsDirForDynamic(volumeDir.Name())
+			modelsDir := cm.cfg.Get().GetModelsDirForDynamic(volumeDir.Name())
 			modelDirs, err := os.ReadDir(modelsDir)
 			if err != nil {
 				return errors.Wrapf(err, "read model dirs from %s", modelsDir)
@@ -75,7 +75,7 @@ func (cm *CacheManager) Scan() error {
 	// Get the cache total size
 	cacheSize, err := cm.getCacheSize()
 	if err != nil {
-		return errors.Wrapf(err, "scan cache from %s", cm.cfg.RootDir)
+		return errors.Wrapf(err, "scan cache from %s", cm.cfg.Get().RootDir)
 	}
 	metrics.NodeCacheSizeInBytes.Set(float64(cacheSize))
 

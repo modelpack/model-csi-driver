@@ -136,13 +136,13 @@ func TestDiskQuotaChecker(t *testing.T) {
 	require.NoError(t, err)
 
 	// The DiskUsageLimit is set to 7MiB
-	cfg := &config.Config{
+	cfg := config.NewWithRaw(&config.RawConfig{
 		RootDir: tmpDir,
 		Features: config.Features{
 			CheckDiskQuota: true,
 			DiskUsageLimit: 7 * 1024 * 1024,
 		},
-	}
+	})
 
 	checker := NewDiskQuotaChecker(cfg)
 	err = checker.Check(ctx, b, "test/model:latest", false)
@@ -157,17 +157,29 @@ func TestDiskQuotaChecker(t *testing.T) {
 	require.True(t, errors.Is(err, syscall.ENOSPC))
 
 	// Update the DiskUsageLimit to 13MiB + 4096KiB
-	cfg.Features.DiskUsageLimit = 13*1024*1024 + 4096
+	cfg.Get().Features.DiskUsageLimit = 13*1024*1024 + 4096
 	err = checker.Check(ctx, b, "test/model:latest", false)
 	require.NoError(t, err)
 
 	// Test case 3: Check with DiskUsageLimit = 0 (use available disk space)
 
 	// Update the DiskUsageLimit to 0MiB
-	cfg.Features.DiskUsageLimit = 0
+	cfg.Get().Features.DiskUsageLimit = 0
+
+	// Mock syscall.Statfs to 4MiB available space
+	patchStatfs := gomonkey.ApplyFunc(syscall.Statfs,
+		func(path string, stat *syscall.Statfs_t) error {
+			stat.Bavail = 4
+			stat.Bsize = 1024 * 1024
+			return nil
+		})
+	defer patchStatfs.Reset()
+
+	err = checker.Check(ctx, b, "test/model:latest", false)
+	require.True(t, errors.Is(err, syscall.ENOSPC))
 
 	// Mock syscall.Statfs to 5MiB available space
-	patchStatfs := gomonkey.ApplyFunc(syscall.Statfs,
+	patchStatfs = gomonkey.ApplyFunc(syscall.Statfs,
 		func(path string, stat *syscall.Statfs_t) error {
 			stat.Bavail = 5
 			stat.Bsize = 1024 * 1024
@@ -176,5 +188,5 @@ func TestDiskQuotaChecker(t *testing.T) {
 	defer patchStatfs.Reset()
 
 	err = checker.Check(ctx, b, "test/model:latest", false)
-	require.True(t, errors.Is(err, syscall.ENOSPC))
+	require.NoError(t, err)
 }

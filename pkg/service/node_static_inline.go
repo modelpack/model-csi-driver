@@ -16,7 +16,7 @@ import (
 )
 
 func (s *Service) nodePublishVolumeStaticInlineVolume(ctx context.Context, volumeName, targetPath, reference string) (*csi.NodePublishVolumeResponse, error) {
-	modelDir := s.cfg.GetModelDir(volumeName)
+	modelDir := s.cfg.Get().GetModelDir(volumeName)
 
 	startedAt := time.Now()
 	if err := s.worker.PullModel(ctx, true, volumeName, "", reference, modelDir, false); err != nil {
@@ -35,7 +35,7 @@ func (s *Service) nodePublishVolumeStaticInlineVolume(ctx context.Context, volum
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "bind mount %s to target %s", modelDir, targetPath).Error())
 	}
 
-	statusPath := filepath.Join(s.cfg.GetVolumeDir(volumeName), "status.json")
+	statusPath := filepath.Join(s.cfg.Get().GetVolumeDir(volumeName), "status.json")
 	volumeStatus, err := s.sm.Get(statusPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrap(err, "get volume status").Error())
@@ -57,7 +57,7 @@ func (s *Service) nodeUnPublishVolumeStaticInlineVolume(ctx context.Context, vol
 		// return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
 	}
 
-	sourceVolumeDir := s.cfg.GetVolumeDir(volumeName)
+	sourceVolumeDir := s.cfg.Get().GetVolumeDir(volumeName)
 	if err := os.RemoveAll(sourceVolumeDir); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove static inline volume dir").Error())
 	}

@@ -4,8 +4,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/dustin/go-humanize"
+	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
@@ -28,7 +30,7 @@ func (s *HumanizeSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-type Config struct {
+type RawConfig struct {
 	// Pattern:
 	// 	static: /var/lib/dragonfly/model-csi/volumes/$volumeName/model
 	// dynamic: /var/lib/dragonfly/model-csi/volumes/$volumeName/models
@@ -40,7 +42,7 @@ type Config struct {
 	DynamicCSIEndpoint       string     `yaml:"dynamic_csi_endpoint"`
 	CSIEndpoint              string     `yaml:"csi_endpoint"`
 	MetricsAddr              string     `yaml:"metrics_addr"`
-	TraceEndpooint           string     `yaml:"trace_endpoint"`
+	TraceEndpoint            string     `yaml:"trace_endpoint"`
 	PprofAddr                string     `yaml:"pprof_addr"`
 	PullConfig               PullConfig `yaml:"pull_config"`
 	Features                 Features   `yaml:"features"`
@@ -61,89 +63,89 @@ type PullConfig struct {
 	PullLayerTimeoutInSeconds uint   `yaml:"pull_layer_timeout_in_seconds"`
 }
 
-func (cfg *Config) ParameterKeyType() string {
+func (cfg *RawConfig) ParameterKeyType() string {
 	return cfg.ServiceName + "/type"
 }
 
-func (cfg *Config) ParameterKeyReference() string {
+func (cfg *RawConfig) ParameterKeyReference() string {
 	return cfg.ServiceName + "/reference"
 }
 
-func (cfg *Config) ParameterKeyMountID() string {
+func (cfg *RawConfig) ParameterKeyMountID() string {
 	return cfg.ServiceName + "/mount-id"
 }
 
-func (cfg *Config) ParameterKeyStatusState() string {
+func (cfg *RawConfig) ParameterKeyStatusState() string {
 	return cfg.ServiceName + "/status/state"
 }
 
-func (cfg *Config) ParameterKeyStatusProgress() string {
+func (cfg *RawConfig) ParameterKeyStatusProgress() string {
 	return cfg.ServiceName + "/status/progress"
 }
 
-func (cfg *Config) ParameterVolumeContextNodeIP() string {
+func (cfg *RawConfig) ParameterVolumeContextNodeIP() string {
 	return cfg.ServiceName + "/node-ip"
 }
 
-func (cfg *Config) ParameterKeyCheckDiskQuota() string {
+func (cfg *RawConfig) ParameterKeyCheckDiskQuota() string {
 	return cfg.ServiceName + "/check-disk-quota"
 }
 
 // /var/lib/dragonfly/model-csi/volumes
-func (cfg *Config) GetVolumesDir() string {
+func (cfg *RawConfig) GetVolumesDir() string {
 	return filepath.Join(cfg.RootDir, "volumes")
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName
-func (cfg *Config) GetVolumeDir(volumeName string) string {
+func (cfg *RawConfig) GetVolumeDir(volumeName string) string {
 	return filepath.Join(cfg.GetVolumesDir(), volumeName)
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/model
-func (cfg *Config) GetModelDir(volumeName string) string {
+func (cfg *RawConfig) GetModelDir(volumeName string) string {
 	return filepath.Join(cfg.GetVolumesDir(), volumeName, "model")
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName
-func (cfg *Config) GetVolumeDirForDynamic(volumeName string) string {
+func (cfg *RawConfig) GetVolumeDirForDynamic(volumeName string) string {
 	return filepath.Join(cfg.GetVolumesDir(), volumeName)
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/models
-func (cfg *Config) GetModelsDirForDynamic(volumeName string) string {
+func (cfg *RawConfig) GetModelsDirForDynamic(volumeName string) string {
 	return filepath.Join(cfg.GetVolumeDirForDynamic(volumeName), "models")
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/models/$mountID
-func (cfg *Config) GetMountIDDirForDynamic(volumeName, mountID string) string {
+func (cfg *RawConfig) GetMountIDDirForDynamic(volumeName, mountID string) string {
 	return filepath.Join(cfg.GetVolumeDirForDynamic(volumeName), "models", mountID)
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/models/$mountID/model
-func (cfg *Config) GetModelDirForDynamic(volumeName, mountID string) string {
+func (cfg *RawConfig) GetModelDirForDynamic(volumeName, mountID string) string {
 	return filepath.Join(cfg.GetVolumeDirForDynamic(volumeName), "models", mountID, "model")
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/csi
-func (cfg *Config) GetCSISockDirForDynamic(volumeName string) string {
+func (cfg *RawConfig) GetCSISockDirForDynamic(volumeName string) string {
 	return filepath.Join(cfg.GetVolumeDirForDynamic(volumeName), "csi")
 }
 
-func (cfg *Config) IsControllerMode() bool {
+func (cfg *RawConfig) IsControllerMode() bool {
 	return cfg.Mode == "controller"
 }
 
-func (cfg *Config) IsNodeMode() bool {
+func (cfg *RawConfig) IsNodeMode() bool {
 	return cfg.Mode == "node"
 }
 
-func parse(path string) (*Config, error) {
+func parse(path string) (*RawConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "read config file")
 	}
 
-	var cfg Config
+	var cfg RawConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, errors.Wrap(err, "unmarshal config file")
 	}
@@ -206,13 +208,46 @@ func parse(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+type Config struct {
+	atomic.Value
+}
+
 func New(path string) (*Config, error) {
 	cfg, err := parse(path)
 	if err != nil {
 		return nil, err
 	}
 
-	go cfg.watch(path)
+	atomicCfg := NewWithRaw(cfg)
 
-	return cfg, nil
+	go atomicCfg.watch(path)
+
+	return atomicCfg, nil
+}
+
+func NewWithRaw(cfg *RawConfig) *Config {
+	atomicCfg := &Config{
+		Value: atomic.Value{},
+	}
+	atomicCfg.Store(cfg)
+	return atomicCfg
+}
+
+func (cfg *Config) Get() *RawConfig {
+	return cfg.Load().(*RawConfig)
+}
+
+func (cfg *Config) reload(path string) {
+	newCfg, err := parse(path)
+	if err != nil {
+		logger.Logger().WithError(err).Error("failed to parse config file")
+		return
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	cfg.Store(newCfg)
+
+	logger.Logger().Infof("config reloaded: %s", path)
 }

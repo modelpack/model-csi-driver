@@ -90,10 +90,10 @@ func (h *HttpHandler) CreateVolume(c echo.Context) error {
 	_, err := h.svc.CreateVolume(c.Request().Context(), &csi.CreateVolumeRequest{
 		Name: volumeName,
 		Parameters: map[string]string{
-			h.cfg.ParameterKeyType():           "image",
-			h.cfg.ParameterKeyReference():      req.Reference,
-			h.cfg.ParameterKeyMountID():        req.MountID,
-			h.cfg.ParameterKeyCheckDiskQuota(): strconv.FormatBool(req.CheckDiskQuota),
+			h.cfg.Get().ParameterKeyType():           "image",
+			h.cfg.Get().ParameterKeyReference():      req.Reference,
+			h.cfg.Get().ParameterKeyMountID():        req.MountID,
+			h.cfg.Get().ParameterKeyCheckDiskQuota(): strconv.FormatBool(req.CheckDiskQuota),
 		},
 	})
 	if err != nil {

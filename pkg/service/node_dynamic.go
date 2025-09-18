@@ -19,12 +19,12 @@ func (s *Service) nodePublishVolumeDynamicForRootMount(ctx context.Context, volu
 		return nil, status.Error(codes.FailedPrecondition, "dynamic csi endpoint is not configured")
 	}
 
-	sourceVolumeDir := s.cfg.GetVolumeDirForDynamic(volumeName)
-	sourceCSIDir := s.cfg.GetCSISockDirForDynamic(volumeName)
+	sourceVolumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
+	sourceCSIDir := s.cfg.Get().GetCSISockDirForDynamic(volumeName)
 	if err := os.MkdirAll(sourceCSIDir, 0755); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrap(err, "create source csi dir").Error())
 	}
-	sourceModelsDir := s.cfg.GetModelsDirForDynamic(volumeName)
+	sourceModelsDir := s.cfg.Get().GetModelsDirForDynamic(volumeName)
 	if err := os.MkdirAll(sourceModelsDir, 0755); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrap(err, "create source models dir").Error())
 	}
@@ -62,7 +62,7 @@ func (s *Service) nodePublishVolumeDynamicForRootMount(ctx context.Context, volu
 }
 
 func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, targetPath string) (*csi.NodeUnpublishVolumeResponse, error) {
-	sourceCSIDir := s.cfg.GetCSISockDirForDynamic(volumeName)
+	sourceCSIDir := s.cfg.Get().GetCSISockDirForDynamic(volumeName)
 	if err := mounter.UMount(ctx, sourceCSIDir, true); err != nil {
 		logger.WithContext(ctx).WithError(err).Errorf("unmount csi directory path")
 		// return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount csi directory path").Error())
@@ -73,7 +73,7 @@ func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, ta
 		// return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
 	}
 
-	sourceVolumeDir := s.cfg.GetVolumeDirForDynamic(volumeName)
+	sourceVolumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
 	if err := os.RemoveAll(sourceVolumeDir); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove dynamic volume dir").Error())
 	}

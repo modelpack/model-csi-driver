@@ -88,8 +88,8 @@ func (server *Server) tokenAuthInterceptor(
 	}
 
 	tokens := md[authTokenKey]
-	if server.cfg.ExternalCSIAuthorization != "" &&
-		(len(tokens) == 0 || strings.TrimSpace(tokens[0]) != server.cfg.ExternalCSIAuthorization) {
+	if server.cfg.Get().ExternalCSIAuthorization != "" &&
+		(len(tokens) == 0 || strings.TrimSpace(tokens[0]) != server.cfg.Get().ExternalCSIAuthorization) {
 		return nil, status.Errorf(codes.Unauthenticated, "Invalid token")
 	}
 
@@ -110,9 +110,9 @@ func (server *Server) Run(ctx context.Context) error {
 		}
 	}
 
-	if server.cfg.PprofAddr != "" {
+	if server.cfg.Get().PprofAddr != "" {
 		eg.Go(withFatalError(func() error {
-			endpoint, err := url.Parse(server.cfg.PprofAddr)
+			endpoint, err := url.Parse(server.cfg.Get().PprofAddr)
 			if err != nil {
 				return errors.Wrap(err, "parse pprof address")
 			}
@@ -122,14 +122,14 @@ func (server *Server) Run(ctx context.Context) error {
 				return errors.Wrap(err, "listen pprof server")
 			}
 
-			logger.WithContext(ctx).Infof("serving pprof server on %s", server.cfg.PprofAddr)
+			logger.WithContext(ctx).Infof("serving pprof server on %s", server.cfg.Get().PprofAddr)
 
 			return http.Serve(lis, nil)
 		}))
 	}
 
 	eg.Go(withFatalError(func() error {
-		endpoint, err := url.Parse(server.cfg.CSIEndpoint)
+		endpoint, err := url.Parse(server.cfg.Get().CSIEndpoint)
 		if err != nil {
 			return errors.Wrap(err, "parse external csi endpoint")
 		}
@@ -151,7 +151,7 @@ func (server *Server) Run(ctx context.Context) error {
 			return errors.Wrap(err, "set env X_CSI_DEBUG")
 		}
 
-		if err := os.Setenv("CSI_ENDPOINT", server.cfg.CSIEndpoint); err != nil {
+		if err := os.Setenv("CSI_ENDPOINT", server.cfg.Get().CSIEndpoint); err != nil {
 			return errors.Wrap(err, "set env CSI_ENDPOINT")
 		}
 
@@ -160,16 +160,16 @@ func (server *Server) Run(ctx context.Context) error {
 			return errors.Wrap(err, "create provider")
 		}
 
-		logger.WithContext(ctx).Infof("serving csi plugin on %s", server.cfg.CSIEndpoint)
+		logger.WithContext(ctx).Infof("serving csi plugin on %s", server.cfg.Get().CSIEndpoint)
 
-		gocsi.Run(ctx, server.cfg.ServiceName, "A description of the SP", "", pvd)
+		gocsi.Run(ctx, server.cfg.Get().ServiceName, "A description of the SP", "", pvd)
 
 		return nil
 	}))
 
-	if server.cfg.MetricsAddr != "" {
+	if server.cfg.Get().MetricsAddr != "" {
 		eg.Go(withFatalError(func() error {
-			metricsAddr := metrics.GetAddrByEnv(server.cfg.MetricsAddr, false)
+			metricsAddr := metrics.GetAddrByEnv(server.cfg.Get().MetricsAddr, false)
 			metricServer, err := metrics.NewServer(metricsAddr)
 			if err != nil {
 				return errors.Wrap(err, "create metrics server")
@@ -181,7 +181,7 @@ func (server *Server) Run(ctx context.Context) error {
 
 		if envPodIP := os.Getenv(metrics.EnvPodIP); envPodIP != "" {
 			eg.Go(withFatalError(func() error {
-				metricsAddr := metrics.GetAddrByEnv(server.cfg.MetricsAddr, true)
+				metricsAddr := metrics.GetAddrByEnv(server.cfg.Get().MetricsAddr, true)
 				metricServer, err := metrics.NewServer(metricsAddr)
 				if err != nil {
 					return errors.Wrap(err, "create metrics server")
@@ -193,15 +193,15 @@ func (server *Server) Run(ctx context.Context) error {
 		}
 	}
 
-	if server.cfg.IsNodeMode() {
-		if server.cfg.ExternalCSIEndpoint != "" {
+	if server.cfg.Get().IsNodeMode() {
+		if server.cfg.Get().ExternalCSIEndpoint != "" {
 			eg.Go(withFatalError(func() error {
-				endpoint, err := url.Parse(server.cfg.ExternalCSIEndpoint)
+				endpoint, err := url.Parse(server.cfg.Get().ExternalCSIEndpoint)
 				if err != nil {
 					return errors.Wrap(err, "parse external csi endpoint")
 				}
 
-				logger.WithContext(ctx).Infof("serving external grpc server on %s", server.cfg.ExternalCSIEndpoint)
+				logger.WithContext(ctx).Infof("serving external grpc server on %s", server.cfg.Get().ExternalCSIEndpoint)
 				lis, err := net.Listen(endpoint.Scheme, endpoint.Host)
 				if err != nil {
 					return errors.Wrap(err, "listen external grpc server")
@@ -220,9 +220,9 @@ func (server *Server) Run(ctx context.Context) error {
 			}))
 		}
 
-		if server.cfg.DynamicCSIEndpoint != "" {
+		if server.cfg.Get().DynamicCSIEndpoint != "" {
 			eg.Go(withFatalError(func() error {
-				endpoint, err := url.Parse(server.cfg.DynamicCSIEndpoint)
+				endpoint, err := url.Parse(server.cfg.Get().DynamicCSIEndpoint)
 				if err != nil {
 					return errors.Wrap(err, "parse dynamic csi endpoint")
 				}
@@ -232,7 +232,7 @@ func (server *Server) Run(ctx context.Context) error {
 					}
 				}
 
-				logger.WithContext(ctx).Infof("serving dynamic http server on %s", server.cfg.DynamicCSIEndpoint)
+				logger.WithContext(ctx).Infof("serving dynamic http server on %s", server.cfg.Get().DynamicCSIEndpoint)
 
 				httpServer, err := NewHTTPServer(server.cfg, server.svc)
 				if err != nil {

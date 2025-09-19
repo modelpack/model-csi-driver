@@ -11,7 +11,7 @@ func (s *Service) GetPluginInfo(
 	req *csi.GetPluginInfoRequest) (
 	*csi.GetPluginInfoResponse, error) {
 	resp := &csi.GetPluginInfoResponse{
-		Name:          s.cfg.ServiceName,
+		Name:          s.cfg.Get().ServiceName,
 		VendorVersion: VendorVersion,
 	}
 

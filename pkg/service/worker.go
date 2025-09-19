@@ -52,7 +52,7 @@ func (cm *ContextMap) Get(key string) *context.CancelFunc {
 
 type Worker struct {
 	cfg        *config.Config
-	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook) Puller
+	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook, diskQuotaChecker *DiskQuotaChecker) Puller
 	sm         *status.StatusManager
 	inflight   singleflight.Group
 	contextMap *ContextMap
@@ -84,9 +84,9 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 
 		defer worker.kmutex.Unlock(contextKey)
 
-		volumeDir := worker.cfg.GetVolumeDir(volumeName)
+		volumeDir := worker.cfg.Get().GetVolumeDir(volumeName)
 		if !isStaticVolume {
-			volumeDir = worker.cfg.GetMountIDDirForDynamic(volumeName, mountID)
+			volumeDir = worker.cfg.Get().GetMountIDDirForDynamic(volumeName, mountID)
 		}
 		// Retry as much as possible to ensure that the "directory not empty"
 		// error does not occur, such as when other processes are still writing
@@ -178,13 +178,17 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 				logger.WithContext(ctx).WithError(err).Errorf("set model status: %v", err)
 			}
 		})
-		checkDiskQuota := worker.cfg.Features.CheckDiskQuota && checkDiskQuota && !worker.isModelExisted(ctx, reference)
-		puller := worker.newPuller(ctx, &worker.cfg.PullConfig, hook)
+		var diskQuotaChecker *DiskQuotaChecker
+		checkDiskQuota := worker.cfg.Get().Features.CheckDiskQuota && checkDiskQuota && !worker.isModelExisted(ctx, reference)
+		if checkDiskQuota {
+			diskQuotaChecker = NewDiskQuotaChecker(worker.cfg)
+		}
+		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker)
 		_, err := setStatus(status.StatePullRunning, hook.GetProgress())
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")
 		}
-		if err := puller.Pull(ctx, reference, modelDir, checkDiskQuota); err != nil {
+		if err := puller.Pull(ctx, reference, modelDir); err != nil {
 			if errors.Is(err, context.Canceled) {
 				err = errors.Wrapf(err, "pull model canceled")
 				if _, err2 := setStatus(status.StatePullCanceled, hook.GetProgress()); err2 != nil {
@@ -219,7 +223,7 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 }
 
 func (worker *Worker) isModelExisted(ctx context.Context, reference string) bool {
-	volumesDir := worker.cfg.GetVolumesDir()
+	volumesDir := worker.cfg.Get().GetVolumesDir()
 	volumeDirs, err := os.ReadDir(volumesDir)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -248,12 +252,12 @@ func (worker *Worker) isModelExisted(ctx context.Context, reference string) bool
 			continue
 		}
 		if isStaticVolume(volumeDir.Name()) {
-			if isModelMountedHere(worker.cfg.GetVolumeDir(volumeDir.Name())) {
+			if isModelMountedHere(worker.cfg.Get().GetVolumeDir(volumeDir.Name())) {
 				return true
 			}
 		}
 		if isDynamicVolume(volumeDir.Name()) {
-			modelsDirForDynamic := worker.cfg.GetModelsDirForDynamic(volumeDir.Name())
+			modelsDirForDynamic := worker.cfg.Get().GetModelsDirForDynamic(volumeDir.Name())
 			modelDirs, err := os.ReadDir(modelsDirForDynamic)
 			if err != nil {
 				logger.WithContext(ctx).WithError(err).Errorf("failed to read model dirs from %s", modelsDirForDynamic)
@@ -265,7 +269,7 @@ func (worker *Worker) isModelExisted(ctx context.Context, reference string) bool
 				}
 
 				mountID := modelDir.Name()
-				if isModelMountedHere(worker.cfg.GetMountIDDirForDynamic(volumeDir.Name(), mountID)) {
+				if isModelMountedHere(worker.cfg.Get().GetMountIDDirForDynamic(volumeDir.Name(), mountID)) {
 					return true
 				}
 			}

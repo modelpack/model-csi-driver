@@ -40,7 +40,7 @@ type mockPuller struct {
 	hook     *service.Hook
 }
 
-func (puller *mockPuller) Pull(ctx context.Context, reference, targetDir string, checkDiskQuota bool) error {
+func (puller *mockPuller) Pull(ctx context.Context, reference, targetDir string) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}
@@ -96,20 +96,20 @@ func run(t *testing.T, cmd string) {
 }
 
 func testStaticInlineVolume(t *testing.T, ctx context.Context, cfg *config.Config, server *Server, volumeName string) {
-	nodeClient, err := client.NewGRPCClient(cfg, cfg.CSIEndpoint)
+	nodeClient, err := client.NewGRPCClient(cfg, cfg.Get().CSIEndpoint)
 	require.NoError(t, err)
 
 	// publish static inline volume
 	mountedDir := volumeName + "-mounted"
-	targetPath := filepath.Join(cfg.RootDir, mountedDir)
+	targetPath := filepath.Join(cfg.Get().RootDir, mountedDir)
 	_, err = nodeClient.PublishStaticInlineVolume(ctx, volumeName, targetPath, testImage)
 	require.NoError(t, err)
 
 	// check if the volume is published
-	statusPath := filepath.Join(cfg.RootDir, "volumes", volumeName, "status.json")
+	statusPath := filepath.Join(cfg.Get().RootDir, "volumes", volumeName, "status.json")
 	_, err = os.Stat(statusPath)
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(cfg.RootDir, "volumes", volumeName, "model", testFile))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, "volumes", volumeName, "model", testFile))
 	require.NoError(t, err)
 
 	// check volume status
@@ -126,20 +126,20 @@ func testStaticInlineVolume(t *testing.T, ctx context.Context, cfg *config.Confi
 	require.NoError(t, err)
 
 	// check if the volume is removed
-	_, err = os.Stat(filepath.Join(cfg.RootDir, "volumes", volumeName))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, "volumes", volumeName))
 	require.True(t, os.IsNotExist(err))
 }
 
 func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, server *Server, volumeName string, withTimeout bool) {
-	nodeClient, err := client.NewGRPCClient(cfg, cfg.CSIEndpoint)
+	nodeClient, err := client.NewGRPCClient(cfg, cfg.Get().CSIEndpoint)
 	require.NoError(t, err)
-	controllerClient, err := client.NewGRPCClient(cfg, cfg.ExternalCSIEndpoint)
+	controllerClient, err := client.NewGRPCClient(cfg, cfg.Get().ExternalCSIEndpoint)
 	require.NoError(t, err)
 
 	// create volume
 	resp1, err := controllerClient.CreateVolume(ctx, volumeName, map[string]string{
-		cfg.ParameterKeyType():      "image",
-		cfg.ParameterKeyReference(): testImage,
+		cfg.Get().ParameterKeyType():      "image",
+		cfg.Get().ParameterKeyReference(): testImage,
 	})
 	require.NoError(t, err)
 
@@ -148,21 +148,21 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 		ctx, cancel := context.WithTimeout(ctx, time.Second*1)
 		defer cancel()
 		_, err := controllerClient.CreateVolume(ctx, volumeName, map[string]string{
-			cfg.ParameterKeyType():      "image",
-			cfg.ParameterKeyReference(): testImage,
+			cfg.Get().ParameterKeyType():      "image",
+			cfg.Get().ParameterKeyReference(): testImage,
 		})
 		require.True(t, strings.Contains(err.Error(), "DeadlineExceeded"))
 		time.Sleep(time.Second * 1)
-		_, err = os.Stat(cfg.GetVolumeDir(volumeName))
-		require.True(t, os.IsNotExist(err), cfg.GetVolumeDir(volumeName))
+		_, err = os.Stat(cfg.Get().GetVolumeDir(volumeName))
+		require.True(t, os.IsNotExist(err), cfg.Get().GetVolumeDir(volumeName))
 		return
 	}
 
 	// check if the volume is created
-	statusPath := filepath.Join(cfg.RootDir, "volumes", volumeName, "status.json")
+	statusPath := filepath.Join(cfg.Get().RootDir, "volumes", volumeName, "status.json")
 	_, err = os.Stat(statusPath)
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(cfg.RootDir, "volumes", volumeName, "model", testFile))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, "volumes", volumeName, "model", testFile))
 	require.NoError(t, err)
 
 	// check volume status
@@ -176,8 +176,8 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 
 	// create volume again with same name
 	resp2, err := controllerClient.CreateVolume(ctx, volumeName, map[string]string{
-		cfg.ParameterKeyType():      "image",
-		cfg.ParameterKeyReference(): testImage,
+		cfg.Get().ParameterKeyType():      "image",
+		cfg.Get().ParameterKeyReference(): testImage,
 	})
 	require.NoError(t, err)
 
@@ -187,12 +187,12 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 
 	// mount the volume
 	mountedDir := volumeName + "-mounted"
-	targetPath := filepath.Join(cfg.RootDir, mountedDir)
+	targetPath := filepath.Join(cfg.Get().RootDir, mountedDir)
 	_, err = nodeClient.PublishVolume(ctx, volumeID, targetPath)
 	require.NoError(t, err)
 
 	// check if the volume is mounted
-	_, err = os.Stat(filepath.Join(cfg.RootDir, mountedDir, testFile))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, mountedDir, testFile))
 	require.NoError(t, err)
 
 	// check volume status
@@ -205,7 +205,7 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 	require.Equal(t, status.StateMounted, modelStatus.State)
 
 	// make mountpoint busy
-	file, err := os.Open(filepath.Join(cfg.RootDir, mountedDir, testFile))
+	file, err := os.Open(filepath.Join(cfg.Get().RootDir, mountedDir, testFile))
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
@@ -218,7 +218,7 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 	require.NoError(t, err)
 
 	// check if the volume is umounted
-	_, err = os.Stat(filepath.Join(cfg.RootDir, "static-volume-1-mounted", testFile))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, "static-volume-1-mounted", testFile))
 	require.True(t, os.IsNotExist(err))
 
 	// check volume status
@@ -239,7 +239,7 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 	require.NoError(t, err)
 
 	// check if the volume is deleted
-	_, err = os.Stat(filepath.Join(cfg.RootDir, "volumes", volumeName))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, "volumes", volumeName))
 	require.True(t, os.IsNotExist(err))
 
 	// delete volume again with same volume id
@@ -248,12 +248,12 @@ func testStaticVolume(t *testing.T, ctx context.Context, cfg *config.Config, ser
 }
 
 func testDynamicVolume(t *testing.T, ctx context.Context, cfg *config.Config, server *Server, volumeName string, withTimeout bool) {
-	nodeClient, err := client.NewGRPCClient(cfg, cfg.CSIEndpoint)
+	nodeClient, err := client.NewGRPCClient(cfg, cfg.Get().CSIEndpoint)
 	require.NoError(t, err)
 
 	// mount a dynamic root volume
 	mountedDir := volumeName + "-mounted"
-	targetPath := filepath.Join(cfg.RootDir, mountedDir)
+	targetPath := filepath.Join(cfg.Get().RootDir, mountedDir)
 	_, err = nodeClient.PublishVolume(ctx, volumeName, targetPath)
 	require.NoError(t, err)
 
@@ -420,7 +420,7 @@ func testDynamicVolume(t *testing.T, ctx context.Context, cfg *config.Config, se
 	require.NoError(t, err)
 
 	// check if the dynamic root volume is unmounted
-	_, err = os.Stat(filepath.Join(cfg.RootDir, volumeName))
+	_, err = os.Stat(filepath.Join(cfg.Get().RootDir, volumeName))
 	require.True(t, os.IsNotExist(err))
 
 	// unmount the dynamic root volume again
@@ -460,11 +460,11 @@ func testStaticConcurrentVolume(t *testing.T, cfg *config.Config, server *Server
 
 	for i := 0; i < concurrent; i++ {
 		eg.Go(func() error {
-			controllerClient, err := client.NewGRPCClient(cfg, cfg.ExternalCSIEndpoint)
+			controllerClient, err := client.NewGRPCClient(cfg, cfg.Get().ExternalCSIEndpoint)
 			require.NoError(t, err)
 			_, err = controllerClient.CreateVolume(context.TODO(), "pvc-test", map[string]string{
-				cfg.ParameterKeyType():      "image",
-				cfg.ParameterKeyReference(): testImage,
+				cfg.Get().ParameterKeyType():      "image",
+				cfg.Get().ParameterKeyReference(): testImage,
 			})
 			if err != nil && strings.Contains(err.Error(), "context canceled") {
 				return nil
@@ -476,7 +476,7 @@ func testStaticConcurrentVolume(t *testing.T, cfg *config.Config, server *Server
 
 	for i := 0; i < concurrent; i++ {
 		eg.Go(func() error {
-			controllerClient, err := client.NewGRPCClient(cfg, cfg.ExternalCSIEndpoint)
+			controllerClient, err := client.NewGRPCClient(cfg, cfg.Get().ExternalCSIEndpoint)
 			require.NoError(t, err)
 			_, err = controllerClient.DeleteVolume(context.TODO(), "pvc-test")
 			require.NoError(t, err)
@@ -488,7 +488,7 @@ func testStaticConcurrentVolume(t *testing.T, cfg *config.Config, server *Server
 }
 
 func testDynamicConcurrentVolume(t *testing.T, cfg *config.Config, server *Server, concurrent int) {
-	nodeClient, err := client.NewGRPCClient(cfg, cfg.CSIEndpoint)
+	nodeClient, err := client.NewGRPCClient(cfg, cfg.Get().CSIEndpoint)
 	require.NoError(t, err)
 
 	volumeName := "csi-volume-test-1"
@@ -496,7 +496,7 @@ func testDynamicConcurrentVolume(t *testing.T, cfg *config.Config, server *Serve
 
 	// mount a dynamic root volume
 	mountedDir := volumeName + "-mounted"
-	targetPath := filepath.Join(cfg.RootDir, mountedDir)
+	targetPath := filepath.Join(cfg.Get().RootDir, mountedDir)
 	_, err = nodeClient.PublishVolume(context.Background(), volumeName, targetPath)
 	require.NoError(t, err)
 	targetCSISockPath := filepath.Join(targetPath, "csi", "csi.sock")
@@ -560,13 +560,13 @@ func TestServer(t *testing.T) {
 	if configPathFromEnv != "" {
 		defaultCoofigPath = configPathFromEnv
 	}
-	cfg, err := config.FromFile(defaultCoofigPath)
+	cfg, err := config.New(defaultCoofigPath)
 	require.NoError(t, err)
-	cfg.RootDir = rootDir
-	cfg.PullConfig.ProxyURL = ""
+	cfg.Get().RootDir = rootDir
+	cfg.Get().PullConfig.ProxyURL = ""
 	service.CacheSacnInterval = 1 * time.Second
 
-	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *service.Hook) service.Puller {
+	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *service.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
 		return &mockPuller{
 			pullCfg:  pullCfg,
 			duration: time.Second * 2,

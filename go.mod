@@ -3,9 +3,11 @@ module github.com/modelpack/model-csi-driver
 go 1.24.2
 
 require (
+	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/containerd/containerd v1.7.27
 	github.com/dustin/go-humanize v1.0.1
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/moby/sys/mountinfo v0.7.2
@@ -27,6 +29,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0
 	golang.org/x/net v0.42.0
 	golang.org/x/sync v0.16.0
+	golang.org/x/sys v0.35.0
 	google.golang.org/grpc v1.75.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.28.4
@@ -128,7 +131,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.8.0 // indirect

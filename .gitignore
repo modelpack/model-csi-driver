@@ -1,6 +1,6 @@
 /model-csi-driver
 /model-csi-cli
-/unit.test
+/server.test
 /output
 /cover.out.tmp
 /coverage.log

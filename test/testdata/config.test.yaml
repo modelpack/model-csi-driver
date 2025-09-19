@@ -25,4 +25,8 @@ pull_config:
   # dragonfly_endpoint: unix:///var/run/dragonfly/dfdaemon.sock
 
 features:
+  # Enable checks if there is enough disk quota to mount the model.
   check_disk_quota: true
+  # disk_usage_limit == 0: reject if available disk space < model size;
+  # disk_usage_limit > 0: reject if (disk_usage_limit - used space) < model size;
+  disk_usage_limit: 10TiB

@@ -38,7 +38,7 @@ func (s *Service) tokenAuthInterceptor(
 	invoker grpc.UnaryInvoker,
 	opts ...grpc.CallOption,
 ) error {
-	newCtx := metadata.AppendToOutgoingContext(ctx, authTokenKey, s.cfg.ExternalCSIAuthorization)
+	newCtx := metadata.AppendToOutgoingContext(ctx, authTokenKey, s.cfg.Get().ExternalCSIAuthorization)
 	return invoker(newCtx, method, req, reply, cc, opts...)
 }
 
@@ -84,7 +84,7 @@ func (s *Service) remoteCreateVolume(
 	span.End()
 
 	volumeName := req.GetName()
-	parameters[s.cfg.ParameterVolumeContextNodeIP()] = nodeInfo.ip
+	parameters[s.cfg.Get().ParameterVolumeContextNodeIP()] = nodeInfo.ip
 
 	parentSpan.SetAttributes(attribute.String("volume_name", volumeName))
 	parentSpan.SetAttributes(attribute.String("node_ip", nodeInfo.ip))
@@ -139,7 +139,7 @@ func (s *Service) remoteDeleteVolume(
 		parameters = map[string]string{}
 	}
 
-	nodeIP := parameters[s.cfg.ParameterVolumeContextNodeIP()]
+	nodeIP := parameters[s.cfg.Get().ParameterVolumeContextNodeIP()]
 	if nodeIP == "" {
 		nodeName := parameters[annotationSelectedNode]
 		if nodeName == "" {

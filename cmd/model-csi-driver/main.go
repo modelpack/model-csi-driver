@@ -38,7 +38,7 @@ func main() {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.FromFile(c.String("config"))
+			cfg, err := config.New(c.String("config"))
 			if err != nil {
 				return errors.Wrap(err, "load config")
 			}

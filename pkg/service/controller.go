@@ -24,12 +24,12 @@ func (s *Service) CreateVolume(
 	req *csi.CreateVolumeRequest) (
 	*csi.CreateVolumeResponse, error) {
 	spanName := "NodeCreateVolume"
-	if s.cfg.IsControllerMode() {
+	if s.cfg.Get().IsControllerMode() {
 		spanName = "ControllerCreateVolume"
 	}
 	ctx, span := tracing.Tracer.Start(ctx, spanName)
 	defer span.End()
-	span.SetAttributes(attribute.String("mode", s.cfg.Mode))
+	span.SetAttributes(attribute.String("mode", s.cfg.Get().Mode))
 
 	ctx = logger.NewContext(ctx, "CreateVolume", req.GetName(), "")
 
@@ -38,7 +38,7 @@ func (s *Service) CreateVolume(
 	var isStaticVolume bool
 	var err error
 	start := time.Now()
-	if s.cfg.IsControllerMode() {
+	if s.cfg.Get().IsControllerMode() {
 		resp, err = s.remoteCreateVolume(ctx, req)
 		metrics.ControllerOpObserve("create_volume", start, err)
 	} else {
@@ -65,7 +65,7 @@ func (s *Service) DeleteVolume(
 	*csi.DeleteVolumeResponse, error) {
 	ctx, span := tracing.Tracer.Start(ctx, "DeleteVolume")
 	defer span.End()
-	span.SetAttributes(attribute.String("mode", s.cfg.Mode))
+	span.SetAttributes(attribute.String("mode", s.cfg.Get().Mode))
 
 	ctx = logger.NewContext(ctx, "DeleteVolume", req.GetVolumeId(), "")
 
@@ -74,7 +74,7 @@ func (s *Service) DeleteVolume(
 	var isStaticVolume bool
 	var err error
 	start := time.Now()
-	if s.cfg.IsControllerMode() {
+	if s.cfg.Get().IsControllerMode() {
 		resp, err = s.remoteDeleteVolume(ctx, req)
 		metrics.ControllerOpObserve("delete_volume", start, err)
 	} else {
@@ -101,7 +101,7 @@ func (s *Service) DeleteVolume(
 func (s *Service) getDynamicVolume(ctx context.Context, volumeName, mountID string) (*modelStatus.Status, error) {
 	ctx = logger.NewContext(ctx, "GetVolume", volumeName, "")
 
-	modelDir := s.cfg.GetMountIDDirForDynamic(volumeName, mountID)
+	modelDir := s.cfg.Get().GetMountIDDirForDynamic(volumeName, mountID)
 	statusPath := filepath.Join(modelDir, "status.json")
 	status, err := s.sm.Get(statusPath)
 	if err != nil {
@@ -122,7 +122,7 @@ func (s *Service) GetDynamicVolume(ctx context.Context, volumeName, mountID stri
 func (s *Service) listDynamicVolumes(ctx context.Context, volumeName string) ([]modelStatus.Status, error) {
 	ctx = logger.NewContext(ctx, "ListVolumes", volumeName, "")
 
-	modelsDir := s.cfg.GetModelsDirForDynamic(volumeName)
+	modelsDir := s.cfg.Get().GetModelsDirForDynamic(volumeName)
 
 	entries, err := os.ReadDir(modelsDir)
 	if err != nil {
@@ -137,7 +137,7 @@ func (s *Service) listDynamicVolumes(ctx context.Context, volumeName string) ([]
 		}
 
 		mountID := entry.Name()
-		modelDir := s.cfg.GetMountIDDirForDynamic(volumeName, mountID)
+		modelDir := s.cfg.Get().GetMountIDDirForDynamic(volumeName, mountID)
 		statusPath := filepath.Join(modelDir, "status.json")
 		status, err := s.sm.Get(statusPath)
 		if err != nil {
@@ -170,7 +170,7 @@ func (s *Service) ListVolumes(
 	logger.WithContext(ctx).Infof("listing volumes")
 	var resp *csi.ListVolumesResponse
 	var err error
-	if s.cfg.IsControllerMode() {
+	if s.cfg.Get().IsControllerMode() {
 		resp, err = s.remoteListVolumes(ctx, req)
 	} else {
 		return nil, status.Error(codes.Unimplemented, "local list volumes not implemented")

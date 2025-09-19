@@ -15,12 +15,12 @@ import (
 )
 
 func (s *Service) nodePublishVolumeStatic(ctx context.Context, volumeName, targetPath string) (*csi.NodePublishVolumeResponse, error) {
-	statusPath := filepath.Join(s.cfg.GetVolumeDir(volumeName), "status.json")
+	statusPath := filepath.Join(s.cfg.Get().GetVolumeDir(volumeName), "status.json")
 	volumeStatus, err := s.sm.Get(statusPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrap(err, "get volume status").Error())
 	}
-	sourcePath := s.cfg.GetModelDir(volumeStatus.VolumeName)
+	sourcePath := s.cfg.Get().GetModelDir(volumeStatus.VolumeName)
 
 	if err = mounter.Mount(
 		ctx,
@@ -45,7 +45,7 @@ func (s *Service) nodeUnPublishVolumeStatic(ctx context.Context, volumeName, tar
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
 	}
 
-	statusPath := filepath.Join(s.cfg.GetVolumeDir(volumeName), "status.json")
+	statusPath := filepath.Join(s.cfg.Get().GetVolumeDir(volumeName), "status.json")
 	volumeStatus, err := s.sm.Get(statusPath)
 	if err != nil {
 		logrus.WithContext(ctx).WithError(err).Errorf("get volume status")

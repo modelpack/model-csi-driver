@@ -50,8 +50,8 @@ func New(cfg *config.Config) (*Service, error) {
 		cfg: cfg,
 	}
 
-	if cfg.IsControllerMode() {
-		externalCSIEndpoint := cfg.ExternalCSIEndpoint
+	if cfg.Get().IsControllerMode() {
+		externalCSIEndpoint := cfg.Get().ExternalCSIEndpoint
 		url, err := url.Parse(externalCSIEndpoint)
 		if err != nil {
 			return nil, errors.Wrapf(err, "parse external csi endpoint: %s", externalCSIEndpoint)
@@ -78,13 +78,13 @@ func New(cfg *config.Config) (*Service, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "create cache manager")
 		}
-		if cfg.DynamicCSIEndpoint != "" {
-			endpoint, err := url.Parse(cfg.DynamicCSIEndpoint)
+		if cfg.Get().DynamicCSIEndpoint != "" {
+			endpoint, err := url.Parse(cfg.Get().DynamicCSIEndpoint)
 			if err != nil {
 				return nil, errors.Wrap(err, "parse dynamic csi endpoint")
 			}
 			if endpoint.Path == "" {
-				return nil, errors.Errorf("dynamic csi endpoint: %s must have a path", cfg.DynamicCSIEndpoint)
+				return nil, errors.Errorf("dynamic csi endpoint: %s must have a path", cfg.Get().DynamicCSIEndpoint)
 			}
 			svc.dynamicCSISockPath = endpoint.Path
 		}

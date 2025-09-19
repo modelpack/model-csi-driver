@@ -91,7 +91,7 @@ func (s *Service) nodePublishVolume(
 		return resp, isStaticVolume, err
 	}
 
-	staticInlineModelReference := volumeAttributes[s.cfg.ParameterKeyReference()]
+	staticInlineModelReference := volumeAttributes[s.cfg.Get().ParameterKeyReference()]
 	if staticInlineModelReference != "" {
 		logger.WithContext(ctx).Infof("publishing static inline volume: %s", staticInlineModelReference)
 		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference)
@@ -170,7 +170,7 @@ func (s *Service) nodeUnpublishVolume(
 		return resp, isStaticVolume, err
 	}
 
-	statusPath := filepath.Join(s.cfg.GetVolumeDir(volumeID), "status.json")
+	statusPath := filepath.Join(s.cfg.Get().GetVolumeDir(volumeID), "status.json")
 	volumeStatus, err := s.sm.Get(statusPath)
 	if err == nil && volumeStatus != nil && volumeStatus.Inline {
 		logger.WithContext(ctx).Infof("unpublishing static inline volume: %s", volumeStatus.Reference)
@@ -255,6 +255,6 @@ func (s *Service) NodeGetInfo(
 	*csi.NodeGetInfoResponse, error) {
 
 	return &csi.NodeGetInfoResponse{
-		NodeId: s.cfg.NodeID,
+		NodeId: s.cfg.Get().NodeID,
 	}, nil
 }

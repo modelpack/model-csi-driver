@@ -43,7 +43,7 @@ func NewGRPCClient(cfg *config.Config, addr string) (*GRPCClient, error) {
 			invoker grpc.UnaryInvoker,
 			opts ...grpc.CallOption,
 		) error {
-			newCtx := metadata.AppendToOutgoingContext(ctx, authTokenKey, cfg.ExternalCSIAuthorization)
+			newCtx := metadata.AppendToOutgoingContext(ctx, authTokenKey, cfg.Get().ExternalCSIAuthorization)
 			return invoker(newCtx, method, req, reply, cc, opts...)
 		}),
 	)
@@ -119,7 +119,7 @@ func (c *GRPCClient) PublishStaticInlineVolume(ctx context.Context, volumeID, ta
 		VolumeId:   volumeID,
 		TargetPath: targetPath,
 		VolumeContext: map[string]string{
-			c.cfg.ParameterKeyReference(): reference,
+			c.cfg.Get().ParameterKeyReference(): reference,
 		},
 	})
 	if err != nil {

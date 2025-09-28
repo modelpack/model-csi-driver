@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,10 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 	otelCodes "go.opentelemetry.io/otel/codes"
+)
+
+const (
+	safetensorIndexFilePath = "model.safetensors.index.json"
 )
 
 type PullHook interface {
@@ -50,7 +55,7 @@ func NewHook(ctx context.Context, progressCb func(progress status.Progress)) *Ho
 }
 
 type Puller interface {
-	Pull(ctx context.Context, reference, targetDir string) error
+	Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool) error
 }
 
 var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
@@ -201,20 +206,22 @@ func (h *Hook) GetProgress() status.Progress {
 	return h.getProgress()
 }
 
-func (p *puller) Pull(ctx context.Context, reference, targetDir string) error {
+func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool) error {
 	keyChain, err := auth.GetKeyChainByRef(reference)
 	if err != nil {
 		return errors.Wrapf(err, "get auth for model: %s", reference)
 	}
+	plainHTTP := keyChain.ServerScheme == "http"
 
 	b, err := backend.New("")
 	if err != nil {
 		return errors.Wrap(err, "create modctl backend")
 	}
 
+	modelArtifact := NewModelArtifact(b, reference, plainHTTP)
+
 	if p.diskQuotaChecker != nil {
-		plainHTTP := keyChain.ServerScheme == "http"
-		if err := p.diskQuotaChecker.Check(ctx, b, reference, plainHTTP); err != nil {
+		if err := p.diskQuotaChecker.Check(ctx, modelArtifact, excludeModelWeights); err != nil {
 			return errors.Wrap(err, "check disk quota")
 		}
 	}
@@ -223,27 +230,50 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string) error {
 		return errors.Wrapf(err, "create model dir: %s", targetDir)
 	}
 
-	if p.pullCfg.Concurrency < 1 {
-		p.pullCfg.Concurrency = 5
+	if !excludeModelWeights {
+		go p.checkLongPulling(ctx)
+
+		pullConfig := modctlConfig.NewPull()
+		pullConfig.Concurrency = int(p.pullCfg.Concurrency)
+		pullConfig.PlainHTTP = plainHTTP
+		pullConfig.Proxy = p.pullCfg.ProxyURL
+		pullConfig.DragonflyEndpoint = p.pullCfg.DragonflyEndpoint
+		pullConfig.Insecure = true
+		pullConfig.ExtractDir = targetDir
+		pullConfig.ExtractFromRemote = true
+		pullConfig.Hooks = p.hook
+		pullConfig.ProgressWriter = io.Discard
+		pullConfig.DisableProgress = true
+
+		if err := b.Pull(ctx, reference, pullConfig); err != nil {
+			logger.WithContext(ctx).WithError(err).Errorf("failed to pull model image: %s", reference)
+			return errors.Wrap(err, "pull model image")
+		}
+
+		return nil
 	}
 
-	pullConfig := modctlConfig.NewPull()
-	pullConfig.Concurrency = int(p.pullCfg.Concurrency)
-	pullConfig.PlainHTTP = keyChain.ServerScheme == "http"
-	pullConfig.Proxy = p.pullCfg.ProxyURL
-	pullConfig.DragonflyEndpoint = p.pullCfg.DragonflyEndpoint
-	pullConfig.Insecure = true
-	pullConfig.ExtractDir = targetDir
-	pullConfig.ExtractFromRemote = true
-	pullConfig.Hooks = p.hook
-	pullConfig.ProgressWriter = io.Discard
-	pullConfig.DisableProgress = true
+	patterns, err := modelArtifact.GetPatterns(ctx, excludeModelWeights)
+	if err != nil {
+		return errors.Wrap(err, "get model file patterns without weights")
+	}
 
-	go p.checkLongPulling(ctx)
+	logger.WithContext(ctx).Infof(
+		"fetching model without weights: %s, file patterns: %s",
+		reference, strings.Join(patterns, ", "),
+	)
 
-	if err := b.Pull(ctx, reference, pullConfig); err != nil {
-		logger.WithContext(ctx).WithError(err).Errorf("failed to pull model image: %s", reference)
-		return errors.Wrap(err, "pull model image")
+	fetchConfig := modctlConfig.NewFetch()
+	fetchConfig.Concurrency = int(p.pullCfg.Concurrency)
+	fetchConfig.PlainHTTP = plainHTTP
+	fetchConfig.Proxy = p.pullCfg.ProxyURL
+	fetchConfig.Insecure = true
+	fetchConfig.Output = targetDir
+	fetchConfig.Patterns = patterns
+
+	if err := b.Fetch(ctx, reference, fetchConfig); err != nil {
+		logger.WithContext(ctx).WithError(err).Errorf("failed to fetch model: %s", reference)
+		return errors.Wrap(err, "fetch model")
 	}
 
 	return nil

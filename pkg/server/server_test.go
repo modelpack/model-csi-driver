@@ -40,7 +40,9 @@ type mockPuller struct {
 	hook     *service.Hook
 }
 
-func (puller *mockPuller) Pull(ctx context.Context, reference, targetDir string) error {
+func (puller *mockPuller) Pull(
+	ctx context.Context, reference, targetDir string, excludeModelWeights bool,
+) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}

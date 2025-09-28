@@ -33,6 +33,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 	modelReference := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyReference()])
 	mountID := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyMountID()])
 	checkDiskQuotaParam := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyCheckDiskQuota()])
+	excludeModelWeightsParam := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyExcludeModelWeights()])
 	isStaticVolume := mountID == ""
 
 	if volumeName == "" {
@@ -58,6 +59,14 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyCheckDiskQuota(), err)
 		}
 	}
+	excludeModelWeights := false
+	if excludeModelWeightsParam != "" {
+		var err error
+		excludeModelWeights, err = strconv.ParseBool(excludeModelWeightsParam)
+		if err != nil {
+			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyExcludeModelWeights(), err)
+		}
+	}
 
 	parentSpan := trace.SpanFromContext(ctx)
 	parentSpan.SetAttributes(attribute.String("volume_name", volumeName))
@@ -69,7 +78,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 		startedAt := time.Now()
 		ctx, span := tracing.Tracer.Start(ctx, "PullModel")
 		span.SetAttributes(attribute.String("model_dir", modelDir))
-		if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, "", modelReference, modelDir, checkDiskQuota); err != nil {
+		if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, "", modelReference, modelDir, checkDiskQuota, excludeModelWeights); err != nil {
 			span.SetStatus(otelCodes.Error, "failed to pull model")
 			span.RecordError(err)
 			span.End()
@@ -102,7 +111,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 	startedAt := time.Now()
 	ctx, span := tracing.Tracer.Start(ctx, "PullModel")
 	span.SetAttributes(attribute.String("model_dir", modelDir))
-	if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, mountID, modelReference, modelDir, checkDiskQuota); err != nil {
+	if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, mountID, modelReference, modelDir, checkDiskQuota, excludeModelWeights); err != nil {
 		span.SetStatus(otelCodes.Error, "failed to pull model")
 		span.RecordError(err)
 		span.End()

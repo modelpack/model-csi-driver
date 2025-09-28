@@ -91,6 +91,10 @@ func (cfg *RawConfig) ParameterKeyCheckDiskQuota() string {
 	return cfg.ServiceName + "/check-disk-quota"
 }
 
+func (cfg *RawConfig) ParameterKeyExcludeModelWeights() string {
+	return cfg.ServiceName + "/exclude-model-weights"
+}
+
 // /var/lib/dragonfly/model-csi/volumes
 func (cfg *RawConfig) GetVolumesDir() string {
 	return filepath.Join(cfg.RootDir, "volumes")
@@ -202,6 +206,10 @@ func parse(path string) (*RawConfig, error) {
 			if _, err := os.Stat(endpoint.Path); err != nil {
 				return nil, errors.Wrapf(err, "check dragonfly endpoint: %s", endpoint.Path)
 			}
+		}
+
+		if cfg.PullConfig.Concurrency == 0 {
+			cfg.PullConfig.Concurrency = 5
 		}
 	}
 

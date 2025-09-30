@@ -5,10 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/modelpack/modctl/pkg/backend"
-	modctlConfig "github.com/modelpack/modctl/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
@@ -53,35 +52,6 @@ func NewDiskQuotaChecker(cfg *config.Config) *DiskQuotaChecker {
 	}
 }
 
-func (d *DiskQuotaChecker) getModelSize(ctx context.Context, b backend.Backend, reference string, plainHTTP bool) (int64, error) {
-	result, err := b.Inspect(ctx, reference, &modctlConfig.Inspect{
-		Remote:    true,
-		Insecure:  true,
-		PlainHTTP: plainHTTP,
-	})
-	if err != nil {
-		return 0, errors.Wrap(err, "inspect model")
-	}
-
-	modelArtifact, ok := result.(*backend.InspectedModelArtifact)
-	if !ok {
-		return 0, fmt.Errorf("invalid inspected result")
-	}
-
-	totalSize := int64(0)
-	digestMap := make(map[string]bool)
-	for idx := range modelArtifact.Layers {
-		layer := modelArtifact.Layers[idx]
-		if _, exists := digestMap[layer.Digest]; exists {
-			continue
-		}
-		totalSize += layer.Size
-		digestMap[layer.Digest] = true
-	}
-
-	return totalSize, nil
-}
-
 func humanizeBytes(size int64) string {
 	if size >= 0 {
 		return humanize.IBytes(uint64(size))
@@ -94,7 +64,7 @@ func humanizeBytes(size int64) string {
 // If cfg.Features.CheckDiskQuota is enabled and the Mount request specifies checkDiskQuota = true:
 // - When cfg.Features.DiskUsageLimit == 0: reject if available disk space < model size;
 // - When cfg.Features.DiskUsageLimit > 0: reject if (cfg.Features.DiskUsageLimit - used space) < model size;
-func (d *DiskQuotaChecker) Check(ctx context.Context, b backend.Backend, reference string, plainHTTP bool) error {
+func (d *DiskQuotaChecker) Check(ctx context.Context, modelArtifact *ModelArtifact, excludeModelWeights bool) error {
 	availSize := int64(0)
 
 	if d.cfg.Get().Features.DiskUsageLimit > 0 {
@@ -111,10 +81,12 @@ func (d *DiskQuotaChecker) Check(ctx context.Context, b backend.Backend, referen
 		availSize = int64(st.Bavail) * int64(st.Bsize)
 	}
 
-	modelSize, err := d.getModelSize(ctx, b, reference, plainHTTP)
+	start := time.Now()
+	modelSize, err := modelArtifact.GetSize(ctx, excludeModelWeights)
 	if err != nil {
 		return errors.Wrap(err, "get model size")
 	}
+	logger.WithContext(ctx).Infof("get model %s, size: %s, duration: %s", modelArtifact.Reference, humanizeBytes(modelSize), time.Since(start))
 
 	logger.WithContext(ctx).Infof(
 		"root dir maximum limit size: %s, available: %s, model: %s",
@@ -124,7 +96,7 @@ func (d *DiskQuotaChecker) Check(ctx context.Context, b backend.Backend, referen
 	if modelSize > availSize {
 		return errors.Wrapf(
 			syscall.ENOSPC, "model image %s is %s, but only %s of disk quota is available",
-			reference, humanizeBytes(modelSize), humanizeBytes(availSize),
+			modelArtifact.Reference, humanizeBytes(modelSize), humanizeBytes(availSize),
 		)
 	}
 

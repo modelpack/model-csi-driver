@@ -2,6 +2,7 @@ package service
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,9 +93,19 @@ func (s *Service) nodePublishVolume(
 	}
 
 	staticInlineModelReference := volumeAttributes[s.cfg.Get().ParameterKeyReference()]
+	excludeModelWeightsParam := volumeAttributes[s.cfg.Get().ParameterKeyExcludeModelWeights()]
 	if staticInlineModelReference != "" {
+		excludeModelWeights := false
+		if excludeModelWeightsParam != "" {
+			var err error
+			excludeModelWeights, err = strconv.ParseBool(excludeModelWeightsParam)
+			if err != nil {
+				return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyExcludeModelWeights(), err)
+			}
+		}
+
 		logger.WithContext(ctx).Infof("publishing static inline volume: %s", staticInlineModelReference)
-		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference)
+		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference, excludeModelWeights)
 		return resp, isStaticVolume, err
 	}
 

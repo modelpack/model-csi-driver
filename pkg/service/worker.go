@@ -114,11 +114,19 @@ func (worker *Worker) DeleteModel(ctx context.Context, isStaticVolume bool, volu
 	return err
 }
 
-func (worker *Worker) PullModel(ctx context.Context, isStaticVolume bool, volumeName, mountID, reference, modelDir string, checkDiskQuota bool) error {
+func (worker *Worker) PullModel(
+	ctx context.Context,
+	isStaticVolume bool,
+	volumeName, mountID,
+	reference,
+	modelDir string,
+	checkDiskQuota bool,
+	excludeModelWeights bool,
+) error {
 	start := time.Now()
 
 	statusPath := filepath.Join(filepath.Dir(modelDir), "status.json")
-	err := worker.pullModel(ctx, statusPath, volumeName, mountID, reference, modelDir, checkDiskQuota)
+	err := worker.pullModel(ctx, statusPath, volumeName, mountID, reference, modelDir, checkDiskQuota, excludeModelWeights)
 	metrics.NodeOpObserve("pull_image", start, err)
 
 	if err != nil && !errors.Is(err, ErrConflict) {
@@ -130,7 +138,7 @@ func (worker *Worker) PullModel(ctx context.Context, isStaticVolume bool, volume
 	return err
 }
 
-func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, modelDir string, checkDiskQuota bool) error {
+func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, modelDir string, checkDiskQuota, excludeModelWeights bool) error {
 	setStatus := func(state status.State, progress status.Progress) (*status.Status, error) {
 		status, err := worker.sm.Set(statusPath, status.Status{
 			VolumeName: volumeName,
@@ -188,7 +196,7 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")
 		}
-		if err := puller.Pull(ctx, reference, modelDir); err != nil {
+		if err := puller.Pull(ctx, reference, modelDir, excludeModelWeights); err != nil {
 			if errors.Is(err, context.Canceled) {
 				err = errors.Wrapf(err, "pull model canceled")
 				if _, err2 := setStatus(status.StatePullCanceled, hook.GetProgress()); err2 != nil {

@@ -56,6 +56,20 @@ func ensureSockNotExists(ctx context.Context, sockPath string) error {
 	return nil
 }
 
+func isSockListening(sockPath string) bool {
+	if _, err := os.Stat(sockPath); err != nil {
+		return false
+	}
+
+	conn, err := net.DialTimeout("unix", sockPath, time.Second*5)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = conn.Close() }()
+
+	return true
+}
+
 type Server struct {
 	cfg *config.Config
 	svc *service.Service
@@ -107,6 +121,15 @@ func (server *Server) Run(ctx context.Context) error {
 				os.Exit(1)
 			}
 			return err
+		}
+	}
+
+	if server.cfg.Get().IsNodeMode() {
+		if endpoint, err := url.Parse(server.cfg.Get().CSIEndpoint); err == nil {
+			if endpoint.Path != "" && isSockListening(endpoint.Path) {
+				err := errors.Errorf("CSI socket %s is already listening", endpoint.Path)
+				return err
+			}
 		}
 	}
 

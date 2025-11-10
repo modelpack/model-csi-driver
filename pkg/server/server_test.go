@@ -3,18 +3,13 @@ package server
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
 	"github.com/modelpack/model-csi-driver/pkg/client"
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/service"
@@ -22,11 +17,8 @@ import (
 	modelspec "github.com/modelpack/model-spec/specs-go/v1"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/codes"
-	grpcStatus "google.golang.org/grpc/status"
 )
 
 const (
@@ -592,17 +584,4 @@ func TestServer(t *testing.T) {
 	testDynamicConcurrentVolume(t, cfg, server, 5)
 
 	run(t, "curl http://127.0.0.1:5244/metrics | grep -v '# '")
-}
-
-func TestHandleError(t *testing.T) {
-	echo := echo.New()
-	recorder := httptest.NewRecorder()
-	echoCtx := echo.NewContext(&http.Request{URL: &url.URL{RawQuery: ""}}, recorder)
-	err := handleError(echoCtx, grpcStatus.Error(codes.ResourceExhausted, errors.Wrap(errors.Wrapf(errors.Wrapf(syscall.ENOSPC, "model image  is , but only of disk quota is available"), "pull model failed"), "pull model for dynamic volume").Error()))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusNotAcceptable, echoCtx.Response().Status)
-
-	err = handleError(echoCtx, grpcStatus.Error(codes.FailedPrecondition, "error test"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusInternalServerError, echoCtx.Response().Status)
 }

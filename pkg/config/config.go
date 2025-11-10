@@ -35,19 +35,23 @@ type RawConfig struct {
 	// 	static: /var/lib/dragonfly/model-csi/volumes/$volumeName/model
 	// dynamic: /var/lib/dragonfly/model-csi/volumes/$volumeName/models
 	//          /var/lib/dragonfly/model-csi/volumes/$volumeName/csi.sock
-	ServiceName              string     `yaml:"service_name"`
-	RootDir                  string     `yaml:"root_dir"`
-	ExternalCSIEndpoint      string     `yaml:"external_csi_endpoint"`
-	ExternalCSIAuthorization string     `yaml:"external_csi_authorization"`
-	DynamicCSIEndpoint       string     `yaml:"dynamic_csi_endpoint"`
-	CSIEndpoint              string     `yaml:"csi_endpoint"`
-	MetricsAddr              string     `yaml:"metrics_addr"`
-	TraceEndpoint            string     `yaml:"trace_endpoint"`
-	PprofAddr                string     `yaml:"pprof_addr"`
-	PullConfig               PullConfig `yaml:"pull_config"`
-	Features                 Features   `yaml:"features"`
-	NodeID                   string     // From env CSI_NODE_ID
-	Mode                     string     // From env X_CSI_MODE: "controller" or "node"
+	ServiceName              string `yaml:"service_name"`
+	RootDir                  string `yaml:"root_dir"`
+	ExternalCSIEndpoint      string `yaml:"external_csi_endpoint"`
+	ExternalCSIAuthorization string `yaml:"external_csi_authorization"`
+	// Deprecated: To ensure secure isolation for each dynamic mount and avoid
+	// unstable mount propagation, an independent csi.sock is currently created
+	// under each dynamic mount directory instead of using a shared csi.sock,
+	// these individual csi.sock servers are managed by the DynamicServerManager.
+	DynamicCSIEndpoint string     `yaml:"dynamic_csi_endpoint"`
+	CSIEndpoint        string     `yaml:"csi_endpoint"`
+	MetricsAddr        string     `yaml:"metrics_addr"`
+	TraceEndpoint      string     `yaml:"trace_endpoint"`
+	PprofAddr          string     `yaml:"pprof_addr"`
+	PullConfig         PullConfig `yaml:"pull_config"`
+	Features           Features   `yaml:"features"`
+	NodeID             string     // From env CSI_NODE_ID
+	Mode               string     // From env X_CSI_MODE: "controller" or "node"
 }
 
 type Features struct {
@@ -133,6 +137,11 @@ func (cfg *RawConfig) GetModelDirForDynamic(volumeName, mountID string) string {
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/csi
 func (cfg *RawConfig) GetCSISockDirForDynamic(volumeName string) string {
 	return filepath.Join(cfg.GetVolumeDirForDynamic(volumeName), "csi")
+}
+
+// /var/lib/dragonfly/model-csi/volumes/$volumeName/csi/csi.sock
+func (cfg *RawConfig) GetCSISockPathForDynamic(volumeName string) string {
+	return filepath.Join(cfg.GetCSISockDirForDynamic(volumeName), "csi.sock")
 }
 
 func (cfg *RawConfig) IsControllerMode() bool {

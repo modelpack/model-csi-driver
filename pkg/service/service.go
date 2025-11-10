@@ -27,10 +27,11 @@ type Service struct {
 	cfg *config.Config
 
 	// only for node mode
-	dynamicCSISockPath string
-	sm                 *status.StatusManager
-	cm                 *CacheManager
-	worker             *Worker
+	dynamicCSISockPath   string
+	sm                   *status.StatusManager
+	cm                   *CacheManager
+	worker               *Worker
+	DynamicServerManager *DynamicServerManager
 
 	// only for controller mode
 	remoteGRPCPort string
@@ -78,19 +79,25 @@ func New(cfg *config.Config) (*Service, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "create cache manager")
 		}
-		if cfg.Get().DynamicCSIEndpoint != "" {
-			endpoint, err := url.Parse(cfg.Get().DynamicCSIEndpoint)
+		// nolint:staticcheck
+		dynamicCSIEndpoint := cfg.Get().DynamicCSIEndpoint
+		if dynamicCSIEndpoint != "" {
+			endpoint, err := url.Parse(dynamicCSIEndpoint)
 			if err != nil {
 				return nil, errors.Wrap(err, "parse dynamic csi endpoint")
 			}
 			if endpoint.Path == "" {
-				return nil, errors.Errorf("dynamic csi endpoint: %s must have a path", cfg.Get().DynamicCSIEndpoint)
+				return nil, errors.Errorf("dynamic csi endpoint: %s must have a path", dynamicCSIEndpoint)
 			}
 			svc.dynamicCSISockPath = endpoint.Path
 		}
+
+		dsm := NewDynamicServerManager(cfg, &svc)
+
 		svc.sm = sm
 		svc.cm = cm
 		svc.worker = worker
+		svc.DynamicServerManager = dsm
 	}
 
 	return &svc, nil

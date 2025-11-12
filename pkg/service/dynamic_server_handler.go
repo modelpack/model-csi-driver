@@ -1,4 +1,4 @@
-package server
+package service
 
 import (
 	"errors"
@@ -12,15 +12,14 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/labstack/echo/v4"
 	"github.com/modelpack/model-csi-driver/pkg/config"
-	"github.com/modelpack/model-csi-driver/pkg/service"
 	modelStatus "github.com/modelpack/model-csi-driver/pkg/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type HttpHandler struct {
+type DynamicServerHandler struct {
 	cfg *config.Config
-	svc *service.Service
+	svc *Service
 }
 
 func checkIdentifier(identifier string) bool {
@@ -52,7 +51,7 @@ func handleError(c echo.Context, err error) error {
 	})
 }
 
-func (h *HttpHandler) CreateVolume(c echo.Context) error {
+func (h *DynamicServerHandler) CreateVolume(c echo.Context) error {
 	volumeName := c.Param("volume_name")
 
 	if !checkIdentifier(volumeName) {
@@ -62,7 +61,7 @@ func (h *HttpHandler) CreateVolume(c echo.Context) error {
 		})
 	}
 
-	req := new(service.MountRequest)
+	req := new(MountRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{
 			Code:    ERR_CODE_INVALID_ARGUMENT,
@@ -111,7 +110,7 @@ func (h *HttpHandler) CreateVolume(c echo.Context) error {
 	return c.JSON(http.StatusCreated, mount)
 }
 
-func (h *HttpHandler) GetVolume(c echo.Context) error {
+func (h *DynamicServerHandler) GetVolume(c echo.Context) error {
 	volumeName := c.Param("volume_name")
 	mountID := c.Param("mount_id")
 
@@ -143,7 +142,7 @@ func (h *HttpHandler) GetVolume(c echo.Context) error {
 	return c.JSON(http.StatusOK, status)
 }
 
-func (h *HttpHandler) DeleteVolume(c echo.Context) error {
+func (h *DynamicServerHandler) DeleteVolume(c echo.Context) error {
 	volumeName := c.Param("volume_name")
 	mountID := c.Param("mount_id")
 
@@ -172,7 +171,7 @@ func (h *HttpHandler) DeleteVolume(c echo.Context) error {
 	return c.JSON(http.StatusNoContent, nil)
 }
 
-func (h *HttpHandler) ListVolumes(c echo.Context) error {
+func (h *DynamicServerHandler) ListVolumes(c echo.Context) error {
 	volumeName := c.Param("volume_name")
 
 	if !checkIdentifier(volumeName) {

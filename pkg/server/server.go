@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/modelpack/model-csi-driver/pkg/metrics"
 	"github.com/modelpack/model-csi-driver/pkg/provider"
 	"github.com/modelpack/model-csi-driver/pkg/service"
+	"github.com/modelpack/model-csi-driver/pkg/utils"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
@@ -40,20 +40,6 @@ var kaep = keepalive.EnforcementPolicy{
 var kasp = keepalive.ServerParameters{
 	Time:    10 * time.Second, // Ping the client if it is idle for 10 seconds to ensure the connection is still active
 	Timeout: 30 * time.Second, // Wait 30 second for the ping ack before assuming the connection is dead
-}
-
-func ensureSockNotExists(ctx context.Context, sockPath string) error {
-	_, err := os.Stat(sockPath)
-	if err == nil {
-		if err = os.Remove(sockPath); err != nil {
-			return errors.Wrapf(err, "remove existed sock path: %s", sockPath)
-		}
-		logger.WithContext(ctx).Infof("removed existed sock path: %s", sockPath)
-	}
-	if err = os.MkdirAll(filepath.Dir(sockPath), 0755); err != nil {
-		return errors.Wrapf(err, "create sock path dir: %s", filepath.Dir(sockPath))
-	}
-	return nil
 }
 
 func isSockListening(sockPath string) bool {
@@ -157,7 +143,7 @@ func (server *Server) Run(ctx context.Context) error {
 			return errors.Wrap(err, "parse external csi endpoint")
 		}
 		if endpoint.Path != "" {
-			if err := ensureSockNotExists(ctx, endpoint.Path); err != nil {
+			if err := utils.EnsureSockNotExists(ctx, endpoint.Path); err != nil {
 				return errors.Wrapf(err, "ensure socket not exists: %s", endpoint.Path)
 			}
 		}
@@ -243,26 +229,28 @@ func (server *Server) Run(ctx context.Context) error {
 			}))
 		}
 
+		// nolint:staticcheck
 		if server.cfg.Get().DynamicCSIEndpoint != "" {
 			eg.Go(withFatalError(func() error {
+				if err := server.svc.DynamicServerManager.RecoverServers(context.Background()); err != nil {
+					return errors.Wrap(err, "recover dynamic http servers")
+				}
+
+				// Deprecated: use DynamicServerManager to manage dynamic csi.sock servers,
+				// keep this for backward compatibility.
+				// nolint:staticcheck
 				endpoint, err := url.Parse(server.cfg.Get().DynamicCSIEndpoint)
 				if err != nil {
 					return errors.Wrap(err, "parse dynamic csi endpoint")
 				}
 				if endpoint.Path != "" {
-					if err := ensureSockNotExists(ctx, endpoint.Path); err != nil {
-						return errors.Wrapf(err, "ensure socket not exists: %s", endpoint.Path)
+					_, err = server.svc.DynamicServerManager.CreateServer(context.Background(), endpoint.Path)
+					if err != nil {
+						return errors.Wrap(err, "create dynamic http server")
 					}
 				}
 
-				logger.WithContext(ctx).Infof("serving dynamic http server on %s", server.cfg.Get().DynamicCSIEndpoint)
-
-				httpServer, err := NewHTTPServer(server.cfg, server.svc)
-				if err != nil {
-					return errors.Wrap(err, "create dynamic http server")
-				}
-
-				return httpServer.Serve()
+				return nil
 			}))
 		}
 	}

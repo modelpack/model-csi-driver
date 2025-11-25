@@ -29,7 +29,7 @@ const (
 type mockPuller struct {
 	pullCfg  *config.PullConfig
 	duration time.Duration
-	hook     *service.Hook
+	hook     *status.Hook
 }
 
 func (puller *mockPuller) Pull(
@@ -560,7 +560,7 @@ func TestServer(t *testing.T) {
 	cfg.Get().PullConfig.ProxyURL = ""
 	service.CacheSacnInterval = 1 * time.Second
 
-	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *service.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
+	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
 		return &mockPuller{
 			pullCfg:  pullCfg,
 			duration: time.Second * 2,

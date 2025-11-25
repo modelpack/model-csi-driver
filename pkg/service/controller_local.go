@@ -190,7 +190,8 @@ func (s *Service) localListVolumes(
 			logger.WithContext(ctx).WithError(err).Errorf("failed to get volume status")
 			return nil, status.Error(codes.Internal, err.Error())
 		}
-		progress, err := modelStatus.Progress.String()
+		progress := s.worker.sm.HookManager.GetProgress(statusPath)
+		progressStr, err := progress.String()
 		if err != nil {
 			logger.WithContext(ctx).WithError(err).Errorf("failed to marshal progress")
 			return nil, status.Error(codes.Internal, err.Error())
@@ -201,7 +202,7 @@ func (s *Service) localListVolumes(
 				VolumeContext: map[string]string{
 					s.cfg.Get().ParameterKeyReference():      modelStatus.Reference,
 					s.cfg.Get().ParameterKeyStatusState():    modelStatus.State,
-					s.cfg.Get().ParameterKeyStatusProgress(): progress,
+					s.cfg.Get().ParameterKeyStatusProgress(): progressStr,
 				},
 			},
 		}, nil

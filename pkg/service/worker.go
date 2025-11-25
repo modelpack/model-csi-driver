@@ -52,7 +52,7 @@ func (cm *ContextMap) Get(key string) *context.CancelFunc {
 
 type Worker struct {
 	cfg        *config.Config
-	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *Hook, diskQuotaChecker *DiskQuotaChecker) Puller
+	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller
 	sm         *status.StatusManager
 	inflight   singleflight.Group
 	contextMap *ContextMap
@@ -81,7 +81,6 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 		if err := worker.kmutex.Lock(context.Background(), contextKey); err != nil {
 			return nil, errors.Wrapf(err, "lock context key: %s", contextKey)
 		}
-
 		defer worker.kmutex.Unlock(contextKey)
 
 		volumeDir := worker.cfg.Get().GetVolumeDir(volumeName)
@@ -100,8 +99,13 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 			return nil, errors.Wrapf(err, "retry remove volume dir: %s", volumeDir)
 		}
 		logger.WithContext(ctx).Infof("removed volume dir: %s", volumeDir)
+
+		statusPath := filepath.Join(volumeDir, "status.json")
+		worker.sm.HookManager.Delete(statusPath)
+
 		return nil, nil
 	})
+
 	return err
 }
 
@@ -139,13 +143,12 @@ func (worker *Worker) PullModel(
 }
 
 func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, modelDir string, checkDiskQuota, excludeModelWeights bool) error {
-	setStatus := func(state status.State, progress status.Progress) (*status.Status, error) {
+	setStatus := func(state status.State) (*status.Status, error) {
 		status, err := worker.sm.Set(statusPath, status.Status{
 			VolumeName: volumeName,
 			MountID:    mountID,
 			Reference:  reference,
 			State:      state,
-			Progress:   progress,
 		})
 		if err != nil {
 			return nil, errors.Wrapf(err, "set model status")
@@ -181,41 +184,39 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 			return nil, errors.Wrapf(err, "cleanup model directory before pull: %s", modelDir)
 		}
 
-		hook := NewHook(ctx, func(progress status.Progress) {
-			if _, err := setStatus(status.StatePullRunning, progress); err != nil {
-				logger.WithContext(ctx).WithError(err).Errorf("set model status: %v", err)
-			}
-		})
+		hook := status.NewHook(ctx)
+		worker.sm.HookManager.Set(statusPath, hook)
+
 		var diskQuotaChecker *DiskQuotaChecker
 		checkDiskQuota := worker.cfg.Get().Features.CheckDiskQuota && checkDiskQuota && !worker.isModelExisted(ctx, reference)
 		if checkDiskQuota {
 			diskQuotaChecker = NewDiskQuotaChecker(worker.cfg)
 		}
 		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker)
-		_, err := setStatus(status.StatePullRunning, hook.GetProgress())
+		_, err := setStatus(status.StatePullRunning)
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")
 		}
 		if err := puller.Pull(ctx, reference, modelDir, excludeModelWeights); err != nil {
 			if errors.Is(err, context.Canceled) {
 				err = errors.Wrapf(err, "pull model canceled")
-				if _, err2 := setStatus(status.StatePullCanceled, hook.GetProgress()); err2 != nil {
+				if _, err2 := setStatus(status.StatePullCanceled); err2 != nil {
 					return nil, errors.Wrapf(err, "set model status: %v", err2)
 				}
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				err = errors.Wrapf(err, "pull model timeout")
-				if _, err2 := setStatus(status.StatePullTimeout, hook.GetProgress()); err2 != nil {
+				if _, err2 := setStatus(status.StatePullTimeout); err2 != nil {
 					return nil, errors.Wrapf(err, "set model status: %v", err2)
 				}
 			} else {
 				err = errors.Wrapf(err, "pull model failed")
-				if _, err2 := setStatus(status.StatePullFailed, hook.GetProgress()); err2 != nil {
+				if _, err2 := setStatus(status.StatePullFailed); err2 != nil {
 					return nil, errors.Wrapf(err, "set model status: %v", err2)
 				}
 			}
 			return nil, err
 		}
-		_, err = setStatus(status.StatePullSucceeded, hook.GetProgress())
+		_, err = setStatus(status.StatePullSucceeded)
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status after pull model succeeded")
 		}

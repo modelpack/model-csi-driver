@@ -27,6 +27,8 @@ const (
 
 type StatusManager struct {
 	mutex sync.Mutex
+
+	HookManager *HookManager
 }
 
 type ProgressItem struct {
@@ -64,7 +66,9 @@ type Status struct {
 }
 
 func NewStatusManager() (*StatusManager, error) {
-	return &StatusManager{}, nil
+	return &StatusManager{
+		HookManager: NewHookManager(),
+	}, nil
 }
 
 func (sm *StatusManager) set(statusPath string, status Status) (*Status, error) {
@@ -134,6 +138,8 @@ func (sm *StatusManager) Get(statusPath string) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	status.Progress = sm.HookManager.GetProgress(statusPath)
 
 	return status, nil
 }

@@ -16,10 +16,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	safetensorIndexFilePath = "model.safetensors.index.json"
-)
-
 type PullHook interface {
 	BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest)
 	AfterPullLayer(desc ocispec.Descriptor, err error)

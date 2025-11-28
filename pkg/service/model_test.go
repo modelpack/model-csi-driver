@@ -41,7 +41,7 @@ func TestModelArtifact(t *testing.T) {
 						MediaType: modelspec.MediaTypeModelWeightRaw,
 						Digest:    "sha256:layer1",
 						Size:      3 * 1024 * 1024,
-						Filepath:  "zoo.safetensors",
+						Filepath:  "bar.zoo.safetensors",
 					},
 				},
 			}, nil
@@ -60,7 +60,7 @@ func TestModelArtifact(t *testing.T) {
 
 	paths, err := modelArtifact.GetPatterns(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, []string{"foo.safetensors", "README.md", "zoo.safetensors"}, paths)
+	require.Equal(t, []string{"foo.safetensors", "README.md", "bar.zoo.safetensors"}, paths)
 
 	paths, err = modelArtifact.GetPatterns(ctx, true)
 	require.NoError(t, err)

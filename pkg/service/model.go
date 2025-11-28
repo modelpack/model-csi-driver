@@ -1,15 +1,14 @@
 package service
 
 import (
+	"path/filepath"
 	"sync"
 	"time"
 
-	legacymodelspec "github.com/dragonflyoss/model-spec/specs-go/v1"
 	"github.com/modelpack/modctl/pkg/backend"
 	modctlConfig "github.com/modelpack/modctl/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/modelpack/model-csi-driver/pkg/utils"
-	modelspec "github.com/modelpack/model-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
@@ -24,26 +23,17 @@ type ModelArtifact struct {
 	artifact *backend.InspectedModelArtifact
 }
 
-func isSafetensorIndexFile(layer backend.InspectedModelArtifactLayer) bool {
-	return layer.Filepath == safetensorIndexFilePath
-}
-
 func isWeightLayer(layer backend.InspectedModelArtifactLayer) bool {
-	if layer.MediaType == modelspec.MediaTypeModelWeightRaw ||
-		layer.MediaType == modelspec.MediaTypeModelWeight ||
-		layer.MediaType == modelspec.MediaTypeModelWeightGzip ||
-		layer.MediaType == modelspec.MediaTypeModelWeightZstd {
+	// For *.safetensors files
+	if filepath.Ext(layer.Filepath) == ".safetensors" {
 		return true
 	}
-	if layer.MediaType == legacymodelspec.MediaTypeModelWeightRaw ||
-		layer.MediaType == legacymodelspec.MediaTypeModelWeight ||
-		layer.MediaType == legacymodelspec.MediaTypeModelWeightGzip ||
-		layer.MediaType == legacymodelspec.MediaTypeModelWeightZstd {
+
+	// For safetensors index file
+	if layer.Filepath == "model.safetensors.index.json" {
 		return true
 	}
-	if isSafetensorIndexFile(layer) {
-		return true
-	}
+
 	return false
 }
 

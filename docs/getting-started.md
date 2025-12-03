@@ -87,7 +87,7 @@ spec:
     csi:
       driver: model.csi.modelpack.org
       volumeAttributes:
-        modelRef: "registry.example.com/models/qwen3-0.6b:latest"
+        model.csi.modelpack.org/reference: "registry.example.com/models/qwen3-0.6b:latest"
 ```
 
 ## Troubleshooting

@@ -49,7 +49,7 @@ func (s *Service) nodePublishVolumeDynamicForRootMount(ctx context.Context, volu
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, targetPath string) (*csi.NodeUnpublishVolumeResponse, error) {
+func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, targetPath string, isMounted bool) (*csi.NodeUnpublishVolumeResponse, error) {
 	sourceCSIDir := s.cfg.Get().GetCSISockDirForDynamic(volumeName)
 	volumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
 
@@ -71,8 +71,10 @@ func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, ta
 		}
 	}
 
-	if err := mounter.UMount(ctx, targetPath, true); err != nil {
-		logger.WithContext(ctx).WithError(err).Errorf("unmount target path")
+	if isMounted {
+		if err := mounter.UMount(ctx, targetPath, true); err != nil {
+			return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
+		}
 	}
 
 	sourceVolumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)

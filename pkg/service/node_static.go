@@ -39,9 +39,11 @@ func (s *Service) nodePublishVolumeStatic(ctx context.Context, volumeName, targe
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (s *Service) nodeUnPublishVolumeStatic(ctx context.Context, volumeName, targetPath string) (*csi.NodeUnpublishVolumeResponse, error) {
-	if err := mounter.UMount(ctx, targetPath, true); err != nil {
-		return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
+func (s *Service) nodeUnPublishVolumeStatic(ctx context.Context, volumeName, targetPath string, isMounted bool) (*csi.NodeUnpublishVolumeResponse, error) {
+	if isMounted {
+		if err := mounter.UMount(ctx, targetPath, true); err != nil {
+			return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
+		}
 	}
 
 	statusPath := filepath.Join(s.cfg.Get().GetVolumeDir(volumeName), "status.json")

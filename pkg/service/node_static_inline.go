@@ -51,10 +51,11 @@ func (s *Service) nodePublishVolumeStaticInlineVolume(ctx context.Context, volum
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (s *Service) nodeUnPublishVolumeStaticInlineVolume(ctx context.Context, volumeName, targetPath string) (*csi.NodeUnpublishVolumeResponse, error) {
-	if err := mounter.UMount(ctx, targetPath, true); err != nil {
-		logger.WithContext(ctx).WithError(err).Errorf("unmount target path")
-		// return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
+func (s *Service) nodeUnPublishVolumeStaticInlineVolume(ctx context.Context, volumeName, targetPath string, isMounted bool) (*csi.NodeUnpublishVolumeResponse, error) {
+	if isMounted {
+		if err := mounter.UMount(ctx, targetPath, true); err != nil {
+			return nil, status.Error(codes.Internal, errors.Wrapf(err, "unmount target path").Error())
+		}
 	}
 
 	sourceVolumeDir := s.cfg.Get().GetVolumeDir(volumeName)

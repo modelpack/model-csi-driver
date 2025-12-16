@@ -172,12 +172,11 @@ func (s *Service) nodeUnpublishVolume(
 	}
 
 	if !isMounted {
-		logger.WithContext(ctx).Infof("target path is already umounted")
-		return &csi.NodeUnpublishVolumeResponse{}, isStaticVolume, nil
+		logger.WithContext(ctx).Warnf("target path is already umounted")
 	}
 
 	if isStaticVolume {
-		resp, err := s.nodeUnPublishVolumeStatic(ctx, volumeID, targetPath)
+		resp, err := s.nodeUnPublishVolumeStatic(ctx, volumeID, targetPath, isMounted)
 		return resp, isStaticVolume, err
 	}
 
@@ -185,11 +184,11 @@ func (s *Service) nodeUnpublishVolume(
 	volumeStatus, err := s.sm.Get(statusPath)
 	if err == nil && volumeStatus != nil && volumeStatus.Inline {
 		logger.WithContext(ctx).Infof("unpublishing static inline volume: %s", volumeStatus.Reference)
-		resp, err := s.nodeUnPublishVolumeStaticInlineVolume(ctx, volumeID, targetPath)
+		resp, err := s.nodeUnPublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, isMounted)
 		return resp, isStaticVolume, err
 	}
 
-	resp, err := s.nodeUnPublishVolumeDynamic(ctx, volumeID, targetPath)
+	resp, err := s.nodeUnPublishVolumeDynamic(ctx, volumeID, targetPath, isMounted)
 	return resp, isStaticVolume, err
 }
 

@@ -76,15 +76,21 @@ var (
 		},
 	)
 
-	NodeMountedStaticImages = prometheus.NewGauge(
+	NodeMountedPVCModels = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: Prefix + "node_mounted_static_images",
+			Name: Prefix + "node_mounted_pvc_models",
 		},
 	)
 
-	NodeMountedDynamicImages = prometheus.NewGauge(
+	NodeMountedInlineModels = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: Prefix + "node_mounted_dynamic_images",
+			Name: Prefix + "node_mounted_inline_models",
+		},
+	)
+
+	NodeMountedDynamicModels = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: Prefix + "node_mounted_dynamic_models",
 		},
 	)
 
@@ -140,7 +146,9 @@ func NodePullOpObserve(op string, size int64, start time.Time, err error) {
 func init() {
 	DummyRegistry.MustRegister()
 
-	DetailRegistry.MustRegister()
+	DetailRegistry.MustRegister(
+		MountItems,
+	)
 
 	Registry.MustRegister(
 		NodeNotReady,
@@ -155,8 +163,9 @@ func init() {
 		ControllerOpLatency,
 
 		NodeCacheSizeInBytes,
-		NodeMountedStaticImages,
-		NodeMountedDynamicImages,
+		NodeMountedPVCModels,
+		NodeMountedInlineModels,
+		NodeMountedDynamicModels,
 		NodePullLayerTooLong,
 	)
 }

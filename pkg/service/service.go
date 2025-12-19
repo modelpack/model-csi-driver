@@ -75,7 +75,7 @@ func New(cfg *config.Config) (*Service, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "create worker")
 		}
-		cm, err := NewCacheManager(cfg)
+		cm, err := NewCacheManager(cfg, sm)
 		if err != nil {
 			return nil, errors.Wrap(err, "create cache manager")
 		}

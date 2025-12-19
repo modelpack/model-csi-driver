@@ -558,7 +558,7 @@ func TestServer(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Get().RootDir = rootDir
 	cfg.Get().PullConfig.ProxyURL = ""
-	service.CacheSacnInterval = 1 * time.Second
+	service.CacheScanInterval = 1 * time.Second
 
 	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
 		return &mockPuller{

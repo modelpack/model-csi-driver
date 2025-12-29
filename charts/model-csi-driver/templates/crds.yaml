@@ -1,8 +1,10 @@
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: model-csi-driver
-  namespace: model-csi
+  name: {{ include "model-csi-driver.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
 
 ---
 

@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   name: {{ include "model-csi-driver.fullname" . }}
   labels:
     {{- include "model-csi-driver.labels" . | nindent 4 }}
@@ -26,7 +26,7 @@ spec:
         {{- end }}
     spec:
       priorityClassName: system-node-critical
-      serviceAccountName: model-csi-driver
+      serviceAccountName: {{ include "model-csi-driver.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -156,11 +156,11 @@ spec:
         - name: config-dir
           configMap:
             defaultMode: 420
-            name: config
+            name: {{ include "model-csi-driver.fullname" . }}-config
         - name: docker-config-dir
           configMap:
             defaultMode: 420
-            name: docker-config
+            name: {{ include "model-csi-driver.fullname" . }}-docker-config
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
       nodeSelector:

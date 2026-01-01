@@ -22,9 +22,9 @@ image:
 
 registrar:
   image:
-    repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
+    repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
     pullPolicy: IfNotPresent
-    tag: v2.5.0
+    tag: v2.9.4
 
 resources:
   limits:

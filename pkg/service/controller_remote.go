@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
@@ -139,24 +140,26 @@ func (s *Service) remoteDeleteVolume(
 		parameters = map[string]string{}
 	}
 
-	nodeIP := parameters[s.cfg.Get().ParameterVolumeContextNodeIP()]
-	if nodeIP == "" {
-		nodeName := parameters[annotationSelectedNode]
-		if nodeName == "" {
-			return nil, status.Errorf(codes.InvalidArgument, "empty annotation %s in PVC", annotationSelectedNode)
-		}
-		_, span := tracing.Tracer.Start(ctx, "GetNodeInfoByName")
-		span.SetAttributes(attribute.String("node_name", nodeName))
-		nodeInfo, err := s.getNodeInfoByName(ctx, nodeName)
-		if err != nil {
-			span.SetStatus(otelCodes.Error, "failed to get node info")
-			span.RecordError(err)
-			span.End()
-			return nil, errors.Wrapf(err, "get node IP by name: %s", nodeName)
-		}
-		span.End()
-		nodeIP = nodeInfo.ip
+	nodeName := parameters[annotationSelectedNode]
+	if nodeName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "empty annotation %s in PVC", annotationSelectedNode)
 	}
+	_, span := tracing.Tracer.Start(ctx, "GetNodeInfoByName")
+	span.SetAttributes(attribute.String("node_name", nodeName))
+	nodeInfo, err := s.getNodeInfoByName(ctx, nodeName)
+	if err != nil {
+		span.SetStatus(otelCodes.Error, "failed to get node info")
+		span.RecordError(err)
+		span.End()
+		// If node not found, we just return success to avoid orphaned volume.
+		if apierrors.IsNotFound(err) {
+			logger.WithContext(ctx).WithError(err).Warnf("node %s not found, return success for deleting volume", nodeName)
+			return &csi.DeleteVolumeResponse{}, nil
+		}
+		return nil, errors.Wrapf(err, "get node IP by name: %s", nodeName)
+	}
+	span.End()
+	nodeIP := nodeInfo.ip
 
 	volumeID := req.GetVolumeId()
 	if volumeID == "" {

@@ -8,3 +8,7 @@ data:
     service_name: {{ .Values.config.serviceName }}
     root_dir: {{ .Values.config.rootDir }}
     csi_endpoint: unix:///csi/csi.sock
+    {{- with .Values.config.pullConfig }}
+    pull_config:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}

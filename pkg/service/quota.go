@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 )
 
 type DiskQuotaChecker struct {

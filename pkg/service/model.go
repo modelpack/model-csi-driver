@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"path/filepath"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/modelpack/model-csi-driver/pkg/utils"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 )
 
 type ModelArtifact struct {
@@ -81,9 +81,11 @@ func (m *ModelArtifact) inspect(ctx context.Context) error {
 	return nil
 }
 
-func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool) ([]backend.InspectedModelArtifactLayer, error) {
+func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool) (
+	[]backend.InspectedModelArtifactLayer, int, error,
+) {
 	if err := m.inspect(ctx); err != nil {
-		return nil, errors.Wrapf(err, "inspect model: %s", m.Reference)
+		return nil, 0, errors.Wrapf(err, "inspect model: %s", m.Reference)
 	}
 
 	layers := []backend.InspectedModelArtifactLayer{}
@@ -104,11 +106,11 @@ func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool) ([]b
 		}
 	}
 
-	return layers, nil
+	return layers, len(m.artifact.Layers), nil
 }
 
 func (m *ModelArtifact) GetSize(ctx context.Context, excludeWeights bool) (int64, error) {
-	layers, err := m.getLayers(ctx, excludeWeights)
+	layers, _, err := m.getLayers(ctx, excludeWeights)
 	if err != nil {
 		return 0, errors.Wrapf(err, "get layers for model: %s", m.Reference)
 	}
@@ -127,10 +129,10 @@ func (m *ModelArtifact) GetSize(ctx context.Context, excludeWeights bool) (int64
 	return totalSize, nil
 }
 
-func (m *ModelArtifact) GetPatterns(ctx context.Context, excludeWeights bool) ([]string, error) {
-	layers, err := m.getLayers(ctx, excludeWeights)
+func (m *ModelArtifact) GetPatterns(ctx context.Context, excludeWeights bool) ([]string, int, error) {
+	layers, total, err := m.getLayers(ctx, excludeWeights)
 	if err != nil {
-		return nil, errors.Wrapf(err, "get layers for model: %s", m.Reference)
+		return nil, 0, errors.Wrapf(err, "get layers for model: %s", m.Reference)
 	}
 
 	paths := []string{}
@@ -138,5 +140,5 @@ func (m *ModelArtifact) GetPatterns(ctx context.Context, excludeWeights bool) ([
 		paths = append(paths, layers[idx].Filepath)
 	}
 
-	return paths, nil
+	return paths, total, nil
 }

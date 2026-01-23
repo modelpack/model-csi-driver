@@ -1,13 +1,13 @@
 package service
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	otelCodes "go.opentelemetry.io/otel/codes"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 

@@ -61,6 +61,7 @@ type Hook struct {
 	ctx      context.Context
 	mutex    sync.RWMutex
 	manifest *ocispec.Manifest
+	total    int
 	pulled   atomic.Uint32
 	progress map[digest.Digest]*ProgressItem
 }
@@ -78,9 +79,29 @@ func (h *Hook) getProgressDesc() string {
 		return fmt.Sprintf("%d/unknown", finished)
 	}
 
-	total := len(h.manifest.Layers)
+	total := h.getTotal()
 
 	return fmt.Sprintf("%d/%d", finished, total)
+}
+
+func (h *Hook) getTotal() int {
+	// Prefer using the total set externally (SetTotal) first.
+	if h.total > 0 {
+		return h.total
+	}
+
+	if h.manifest != nil {
+		return len(h.manifest.Layers)
+	}
+
+	return 0
+}
+
+func (h *Hook) SetTotal(total int) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	h.total = total
 }
 
 func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest) {
@@ -163,15 +184,7 @@ func (h *Hook) getProgress() Progress {
 		return items[i].StartedAt.Before(items[j].StartedAt)
 	})
 
-	total := 0
-	if h.manifest != nil {
-		digestMap := make(map[digest.Digest]bool)
-		for idx := range h.manifest.Layers {
-			layer := h.manifest.Layers[idx]
-			digestMap[layer.Digest] = true
-		}
-		total = len(digestMap)
-	}
+	total := h.getTotal()
 
 	return Progress{
 		Total: total,

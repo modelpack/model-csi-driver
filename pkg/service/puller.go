@@ -84,22 +84,27 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 		return nil
 	}
 
-	patterns, err := modelArtifact.GetPatterns(ctx, excludeModelWeights)
+	patterns, total, err := modelArtifact.GetPatterns(ctx, excludeModelWeights)
 	if err != nil {
 		return errors.Wrap(err, "get model file patterns without weights")
 	}
 
 	logger.WithContext(ctx).Infof(
-		"fetching model without weights: %s, file patterns: %s",
-		reference, strings.Join(patterns, ", "),
+		"fetching partial files from model: %s, files: %s (%d/%d)",
+		reference, strings.Join(patterns, ", "), len(patterns), total,
 	)
+	p.hook.SetTotal(len(patterns))
 
 	fetchConfig := modctlConfig.NewFetch()
 	fetchConfig.Concurrency = int(p.pullCfg.Concurrency)
 	fetchConfig.PlainHTTP = plainHTTP
 	fetchConfig.Proxy = p.pullCfg.ProxyURL
+	fetchConfig.DragonflyEndpoint = p.pullCfg.DragonflyEndpoint
 	fetchConfig.Insecure = true
 	fetchConfig.Output = targetDir
+	fetchConfig.Hooks = p.hook
+	fetchConfig.ProgressWriter = io.Discard
+	fetchConfig.DisableProgress = true
 	fetchConfig.Patterns = patterns
 
 	if err := b.Fetch(ctx, reference, fetchConfig); err != nil {

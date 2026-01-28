@@ -21,9 +21,13 @@ release:
 	@CGO_ENABLED=0 ${PROXY} GOOS=linux GOARCH=${GOARCH} go build -tags disable_libgit2 -ldflags '${RELEASE_INFO} -w -extldflags "-static"' -o ./ ./cmd/model-csi-cli
 
 test:
-	go list ./... | grep -v -E github.com/modelpack/model-csi-driver/pkg/server | xargs go test -tags disable_libgit2 -race -v -timeout 10m
-	go test -tags disable_libgit2 -race -c -o ./server.test github.com/modelpack/model-csi-driver/pkg/server
-	sudo CONFIG_PATH=./test/testdata/config.test.yaml ./server.test -test.v -test.timeout 10m
+	@echo "Running tests for all packages except pkg/server (requires sudo)..."
+	@go list ./... | grep -v -E github.com/modelpack/model-csi-driver/pkg/server | xargs go test -tags disable_libgit2 -race -v -timeout 10m
+	@echo "Running tests for pkg/server (with sudo)..."
+	@go test -tags disable_libgit2 -race -c -o ./server.test github.com/modelpack/model-csi-driver/pkg/server
+	@sudo CONFIG_PATH=./test/testdata/config.test.yaml ./server.test -test.v -test.timeout 10m
+	@rm -f ./server.test
+	@echo "All tests completed successfully!"
 
 test-coverage:
 	@echo "mode: atomic" > coverage.out

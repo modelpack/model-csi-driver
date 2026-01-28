@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/modelpack/model-csi-driver/pkg/mounter"
 	modelStatus "github.com/modelpack/model-csi-driver/pkg/status"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

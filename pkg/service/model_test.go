@@ -58,11 +58,13 @@ func TestModelArtifact(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2*1024*1024), size)
 
-	paths, err := modelArtifact.GetPatterns(ctx, false)
+	paths, total, err := modelArtifact.GetPatterns(ctx, false)
 	require.NoError(t, err)
+	require.Equal(t, 3, total)
 	require.Equal(t, []string{"foo.safetensors", "README.md", "bar.zoo.safetensors"}, paths)
 
-	paths, err = modelArtifact.GetPatterns(ctx, true)
+	paths, total, err = modelArtifact.GetPatterns(ctx, true)
 	require.NoError(t, err)
+	require.Equal(t, 3, total)
 	require.Equal(t, []string{"README.md"}, paths)
 }

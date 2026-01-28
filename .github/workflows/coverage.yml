@@ -36,8 +36,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          # Run tests for all packages except pkg/server which requires sudo for mount operations
-          go list ./pkg/... | grep -v -E github.com/modelpack/model-csi-driver/pkg/server | xargs go test -tags disable_libgit2 -coverprofile=coverage.out -covermode=atomic
+          sudo make test-coverage
 
       - name: Generate coverage report
         run: |

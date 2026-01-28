@@ -4,4 +4,6 @@
 /output
 /cover.out.tmp
 /coverage.log
+/coverage.out
+/coverage.txt
 .vscode

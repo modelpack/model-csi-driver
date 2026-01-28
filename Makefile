@@ -33,15 +33,15 @@ test-coverage:
 	@echo "mode: atomic" > coverage.out
 	@echo "Running tests with coverage for non-server packages..."
 	@for pkg in $$(go list ./... | grep -v -E github.com/modelpack/model-csi-driver/pkg/server); do \
-		go test -tags disable_libgit2 -coverprofile=coverage.tmp -covermode=atomic -timeout 10m $$pkg || exit 1; \
+		go test -tags disable_libgit2 -race -coverprofile=coverage.tmp -covermode=atomic -timeout 10m $$pkg || exit 1; \
 		if [ -f coverage.tmp ]; then \
 			tail -n +2 coverage.tmp >> coverage.out; \
 			rm coverage.tmp; \
 		fi; \
 	done
 	@echo "Running tests with coverage for pkg/server..."
-	@go test -tags disable_libgit2 -covermode=atomic -c -o ./server.test github.com/modelpack/model-csi-driver/pkg/server
-	@sudo CONFIG_PATH=./test/testdata/config.test.yaml ./server.test -test.coverprofile=coverage.server.out -test.timeout 10m
+	@go test -tags disable_libgit2 -race -covermode=atomic -c -o ./server.test github.com/modelpack/model-csi-driver/pkg/server
+	@sudo CONFIG_PATH=./test/testdata/config.test.yaml ./server.test -test.coverprofile=coverage.server.out -test.timeout 10m || exit 1
 	@if [ -f coverage.server.out ]; then \
 		tail -n +2 coverage.server.out >> coverage.out; \
 		rm coverage.server.out; \

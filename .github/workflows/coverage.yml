@@ -36,12 +36,13 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          go test -tags disable_libgit2 -coverprofile=coverage.out -covermode=atomic ./pkg/...
-          
+          # Run tests for all packages except pkg/server which requires sudo for mount operations
+          go list ./pkg/... | grep -v -E github.com/modelpack/model-csi-driver/pkg/server | xargs go test -tags disable_libgit2 -coverprofile=coverage.out -covermode=atomic
+
       - name: Generate coverage report
         run: |
           go tool cover -func=coverage.out > coverage.txt
-          
+
       - name: Display coverage summary
         run: |
           echo "## Code Coverage Report" >> $GITHUB_STEP_SUMMARY

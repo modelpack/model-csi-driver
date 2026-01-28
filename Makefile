@@ -36,11 +36,11 @@ test-coverage:
 		fi; \
 	done
 	@echo "Running tests with coverage for pkg/server..."
-	@go test -tags disable_libgit2 -coverprofile=coverage.server.tmp -covermode=atomic -c -o ./server.test github.com/modelpack/model-csi-driver/pkg/server
-	@sudo CONFIG_PATH=./test/testdata/config.test.yaml ./server.test -test.coverprofile=coverage.server.out -test.timeout 10m || true
+	@go test -tags disable_libgit2 -covermode=atomic -c -o ./server.test github.com/modelpack/model-csi-driver/pkg/server
+	@sudo CONFIG_PATH=./test/testdata/config.test.yaml ./server.test -test.coverprofile=coverage.server.out -test.timeout 10m
 	@if [ -f coverage.server.out ]; then \
 		tail -n +2 coverage.server.out >> coverage.out; \
 		rm coverage.server.out; \
 	fi
-	@rm -f coverage.server.tmp ./server.test
+	@rm -f ./server.test
 	@echo "Coverage report generated: coverage.out"

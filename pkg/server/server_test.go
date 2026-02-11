@@ -563,6 +563,7 @@ func TestServer(t *testing.T) {
 	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker, excludeFilePatterns []string) service.Puller {
 		return &mockPuller{
 			pullCfg:  pullCfg,
+			duration: time.Second * 2,
 			hook:     hook,
 		}
 	}

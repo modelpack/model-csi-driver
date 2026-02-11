@@ -90,7 +90,7 @@ pull_config:
 
 	// Verify other files still exist
 	foundConfig := false
-	filepath.Walk(modelDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(modelDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -99,6 +99,9 @@ pull_config:
 		}
 		return nil
 	})
+	if err != nil {
+		return
+	}
 
 	if !foundConfig {
 		t.Error("Expected to find .json files, but none were found")

@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	gitignore "github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
-	gitignore "github.com/go-git/go-git/v5/plumbing/format/gitignore"
 )
 
 // FilePatternMatcher wraps gitignore pattern matching functionality
@@ -50,8 +50,8 @@ func (m *FilePatternMatcher) Match(path string) bool {
 	// and uses a slice of strings for path components
 	path = filepath.ToSlash(path)
 	pathParts := strings.Split(path, "/")
-
-	return m.matcher.Match(pathParts, false)
+	isDir := strings.HasSuffix(path, "/")
+	return m.matcher.Match(pathParts, isDir)
 }
 
 // Excludes returns true if any exclusion patterns are defined
@@ -155,7 +155,12 @@ func isDirEmpty(dir string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		err = f.Close()
+		if err != nil {
+			return
+		}
+	}(f)
 
 	_, err = f.Readdirnames(1)
 	if err == nil {

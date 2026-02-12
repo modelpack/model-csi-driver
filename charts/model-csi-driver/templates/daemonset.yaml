@@ -34,6 +34,10 @@ spec:
       {{- if .Values.hostNetwork }}
       hostNetwork: {{ .Values.hostNetwork }}
       {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml .Values.hostAliases | nindent 6 }}
+      {{- end }}
       containers:
         - name: model-csi-driver-registrar
           image: "{{ .Values.registrar.image.repository }}:{{ .Values.registrar.image.tag }}"

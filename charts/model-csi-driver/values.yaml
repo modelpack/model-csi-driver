@@ -12,6 +12,23 @@ config:
     # registry.example.com:
     #   auth: dXNlcm5hbWU6cGFzc3dvcmQ=
     #   serverscheme: https
+  # pullConfig:
+  #   # Number of concurrent downloads.
+  #   concurrency: 5
+  #
+  #   # Path to the directory containing Docker config.json file.
+  #   # Defaults to /root/.docker
+  #   docker_config_dir: ""
+  #
+  #   # Endpoint of the Dragonfly dfdaemon.
+  #   # e.g. unix:////var/run/dragonfly/dfdaemon.sock
+  #   dragonfly_endpoint: ""
+  #
+  #   # URL of a proxy server to use for pulling images.
+  #   proxy_url: ""
+  #
+  #   # Timeout in seconds for pulling a single layer.
+  #   pull_layer_timeout_in_seconds: 300
 
 namespace: model-csi
 
@@ -46,3 +63,4 @@ podAnnotations: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
+hostAliases: {}

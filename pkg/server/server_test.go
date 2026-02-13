@@ -33,7 +33,7 @@ type mockPuller struct {
 }
 
 func (puller *mockPuller) Pull(
-	ctx context.Context, reference, targetDir string, excludeModelWeights bool,
+	ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string,
 ) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
@@ -560,7 +560,7 @@ func TestServer(t *testing.T) {
 	cfg.Get().PullConfig.ProxyURL = ""
 	service.CacheScanInterval = 1 * time.Second
 
-	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
+	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker, excludeFilePatterns []string) service.Puller {
 		return &mockPuller{
 			pullCfg:  pullCfg,
 			duration: time.Second * 2,

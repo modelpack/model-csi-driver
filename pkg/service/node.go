@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -104,8 +105,24 @@ func (s *Service) nodePublishVolume(
 			}
 		}
 
+		excludeFilePatternsParam := volumeAttributes[s.cfg.Get().ParameterKeyExcludeFiles()]
+		var excludeFilePatterns []string
+		if excludeFilePatternsParam != "" {
+			if err := json.Unmarshal([]byte(excludeFilePatternsParam), &excludeFilePatterns); err != nil {
+				return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: must be valid JSON array: %v", s.cfg.Get().ParameterKeyExcludeFiles(), err)
+			}
+			for _, p := range excludeFilePatterns {
+				if strings.HasPrefix(p, "/") && len(p) > 1 {
+					return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: absolute paths not allowed: %s", s.cfg.Get().ParameterKeyExcludeFiles(), p)
+				}
+				if strings.Contains(p, "..") {
+					return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: parent directory reference not allowed: %s", s.cfg.Get().ParameterKeyExcludeFiles(), p)
+				}
+			}
+		}
+
 		logger.WithContext(ctx).Infof("publishing static inline volume: %s", staticInlineModelReference)
-		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference, excludeModelWeights)
+		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference, excludeModelWeights, excludeFilePatterns)
 		return resp, isStaticVolume, err
 	}
 

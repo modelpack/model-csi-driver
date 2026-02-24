@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,19 +71,11 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 	excludeFilePatternsParam := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyExcludeFiles()])
 	var excludeFilePatterns []string
 	if excludeFilePatternsParam != "" {
-		if err := json.Unmarshal([]byte(excludeFilePatternsParam), &excludeFilePatterns); err != nil {
-			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: must be valid JSON array: %v", s.cfg.Get().ParameterKeyExcludeFiles(), err)
+		excludeFilePatterns = strings.Split(excludeFilePatternsParam, ",")
+		if len(excludeFilePatterns) == 0 {
+			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: must be valid comma-separated pattern", s.cfg.Get().ParameterKeyExcludeFiles())
 		}
 
-		// Validate patterns for security
-		for _, p := range excludeFilePatterns {
-			if strings.HasPrefix(p, "/") && len(p) > 1 {
-				return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: absolute paths not allowed: %s", s.cfg.Get().ParameterKeyExcludeFiles(), p)
-			}
-			if strings.Contains(p, "..") {
-				return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: parent directory reference not allowed: %s", s.cfg.Get().ParameterKeyExcludeFiles(), p)
-			}
-		}
 	}
 
 	parentSpan := trace.SpanFromContext(ctx)

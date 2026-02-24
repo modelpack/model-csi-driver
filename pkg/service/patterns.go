@@ -1,6 +1,7 @@
 package service
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,17 +20,6 @@ type FilePatternMatcher struct {
 
 // NewFilePatternMatcher creates a new pattern matcher from a list of gitignore-compatible patterns
 func NewFilePatternMatcher(patterns []string) (*FilePatternMatcher, error) {
-	// Validate patterns for security
-	for _, p := range patterns {
-		// Check for absolute paths (starts with / and has more characters)
-		if strings.HasPrefix(p, "/") && len(p) > 1 {
-			return nil, errors.Errorf("absolute path patterns are not allowed: %s", p)
-		}
-		if strings.Contains(p, "..") {
-			return nil, errors.Errorf("parent directory reference is not allowed: %s", p)
-		}
-	}
-
 	// Create gitignore matcher from patterns
 	// Parse each string pattern into gitignore.Pattern
 	var gitPatterns []gitignore.Pattern
@@ -123,7 +113,11 @@ func removeEmptyDirectories(targetDir string, matcher *FilePatternMatcher) {
 		}
 
 		if info.IsDir() && path != targetDir {
-			isEmpty, _ := isDirEmpty(path)
+			isEmpty, err := isDirEmpty(path)
+			if err != nil {
+				logger.Logger().WithError(err).Warnf("Failed to check if directory is empty: %s", path)
+				return nil
+			}
 			if isEmpty {
 				dirsToRemove = append(dirsToRemove, path)
 			}
@@ -166,7 +160,7 @@ func isDirEmpty(dir string) (bool, error) {
 	if err == nil {
 		return false, nil // Directory is not empty
 	}
-	if err.Error() == "EOF" {
+	if err == io.EOF {
 		return true, nil // Directory is empty
 	}
 	return false, err // Error reading directory

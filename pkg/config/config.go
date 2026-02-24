@@ -100,7 +100,7 @@ func (cfg *RawConfig) ParameterKeyExcludeModelWeights() string {
 }
 
 func (cfg *RawConfig) ParameterKeyExcludeFiles() string {
-	return cfg.ServiceName + "/exclude-files"
+	return cfg.ServiceName + "/exclude-file-patterns"
 }
 
 // /var/lib/dragonfly/model-csi/volumes

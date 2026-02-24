@@ -87,22 +87,6 @@ func (h *DynamicServerHandler) CreateVolume(c echo.Context) error {
 		})
 	}
 
-	// Validate exclude_file_patterns
-	for _, p := range req.ExcludeFilePatterns {
-		if strings.HasPrefix(p, "/") && len(p) > 1 {
-			return c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:    ERR_CODE_INVALID_ARGUMENT,
-				Message: fmt.Sprintf("exclude_file_patterns: absolute paths not allowed: %s", p),
-			})
-		}
-		if strings.Contains(p, "..") {
-			return c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:    ERR_CODE_INVALID_ARGUMENT,
-				Message: fmt.Sprintf("exclude_file_patterns: parent directory reference not allowed: %s", p),
-			})
-		}
-	}
-
 	excludeFilesJSON := "[]"
 	if len(req.ExcludeFilePatterns) > 0 {
 		jsonBytes, err := json.Marshal(req.ExcludeFilePatterns)

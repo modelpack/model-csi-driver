@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	gitignore "github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/modelpack/modctl/pkg/backend"
 	modctlConfig "github.com/modelpack/modctl/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
@@ -35,6 +36,25 @@ func isWeightLayer(layer backend.InspectedModelArtifactLayer) bool {
 	}
 
 	return false
+}
+
+// matchFilePatterns matches filename against gitignore-style patterns using
+// github.com/go-git/go-git/v5/plumbing/format/gitignore.
+// Patterns are processed in order; the last matching pattern wins.
+// A pattern prefixed with "!" negates the match (i.e. forces inclusion).
+// Returns (matched=true, excluded=true) when the file should be excluded,
+// (matched=true, excluded=false) when a negation pattern overrides, and
+// (matched=false, _) when no pattern matches (caller applies fallback logic).
+func matchFilePatterns(filename string, patterns []string) (matched bool, excluded bool) {
+	for _, p := range patterns {
+		result := gitignore.ParsePattern(p, nil).Match([]string{filename}, false)
+		if result == gitignore.NoMatch {
+			continue
+		}
+		matched = true
+		excluded = result == gitignore.Exclude
+	}
+	return
 }
 
 func NewModelArtifact(b backend.Backend, reference string, plainHTTP bool) *ModelArtifact {
@@ -81,7 +101,7 @@ func (m *ModelArtifact) inspect(ctx context.Context) error {
 	return nil
 }
 
-func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool) (
+func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool, excludeFilePatterns []string) (
 	[]backend.InspectedModelArtifactLayer, int, error,
 ) {
 	if err := m.inspect(ctx); err != nil {
@@ -91,17 +111,32 @@ func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool) (
 	layers := []backend.InspectedModelArtifactLayer{}
 	for idx := range m.artifact.Layers {
 		layer := m.artifact.Layers[idx]
-		if excludeWeights {
-			if layer.Filepath == "" {
-				logger.Logger().WithContext(ctx).Warnf(
-					"layer %s has no file path, skip", layer.Digest,
-				)
-				continue
-			}
-			if !isWeightLayer(layer) {
+
+		// If no filtering is requested, include all layers without further checks.
+		if !excludeWeights && len(excludeFilePatterns) == 0 {
+			layers = append(layers, layer)
+			continue
+		}
+
+		if layer.Filepath == "" {
+			logger.Logger().WithContext(ctx).Warnf(
+				"layer %s has no file path, skip", layer.Digest,
+			)
+			continue
+		}
+
+		filename := filepath.Base(layer.Filepath)
+
+		// exclude_file_patterns takes precedence over exclude_model_weights.
+		if matched, excluded := matchFilePatterns(filename, excludeFilePatterns); matched {
+			if !excluded {
 				layers = append(layers, layer)
 			}
-		} else {
+			continue
+		}
+
+		// Fallback: apply weight-based exclusion.
+		if !excludeWeights || !isWeightLayer(layer) {
 			layers = append(layers, layer)
 		}
 	}
@@ -109,8 +144,8 @@ func (m *ModelArtifact) getLayers(ctx context.Context, excludeWeights bool) (
 	return layers, len(m.artifact.Layers), nil
 }
 
-func (m *ModelArtifact) GetSize(ctx context.Context, excludeWeights bool) (int64, error) {
-	layers, _, err := m.getLayers(ctx, excludeWeights)
+func (m *ModelArtifact) GetSize(ctx context.Context, excludeWeights bool, excludeFilePatterns []string) (int64, error) {
+	layers, _, err := m.getLayers(ctx, excludeWeights, excludeFilePatterns)
 	if err != nil {
 		return 0, errors.Wrapf(err, "get layers for model: %s", m.Reference)
 	}
@@ -129,8 +164,8 @@ func (m *ModelArtifact) GetSize(ctx context.Context, excludeWeights bool) (int64
 	return totalSize, nil
 }
 
-func (m *ModelArtifact) GetPatterns(ctx context.Context, excludeWeights bool) ([]string, int, error) {
-	layers, total, err := m.getLayers(ctx, excludeWeights)
+func (m *ModelArtifact) GetPatterns(ctx context.Context, excludeWeights bool, excludeFilePatterns []string) ([]string, int, error) {
+	layers, total, err := m.getLayers(ctx, excludeWeights, excludeFilePatterns)
 	if err != nil {
 		return nil, 0, errors.Wrapf(err, "get layers for model: %s", m.Reference)
 	}

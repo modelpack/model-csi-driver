@@ -126,11 +126,12 @@ func (worker *Worker) PullModel(
 	modelDir string,
 	checkDiskQuota bool,
 	excludeModelWeights bool,
+	excludeFilePatterns []string,
 ) error {
 	start := time.Now()
 
 	statusPath := filepath.Join(filepath.Dir(modelDir), "status.json")
-	err := worker.pullModel(ctx, statusPath, volumeName, mountID, reference, modelDir, checkDiskQuota, excludeModelWeights)
+	err := worker.pullModel(ctx, statusPath, volumeName, mountID, reference, modelDir, checkDiskQuota, excludeModelWeights, excludeFilePatterns)
 	metrics.NodeOpObserve("pull_image", start, err)
 
 	if err != nil && !errors.Is(err, ErrConflict) {
@@ -142,7 +143,7 @@ func (worker *Worker) PullModel(
 	return err
 }
 
-func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, modelDir string, checkDiskQuota, excludeModelWeights bool) error {
+func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, modelDir string, checkDiskQuota, excludeModelWeights bool, excludeFilePatterns []string) error {
 	setStatus := func(state status.State) (*status.Status, error) {
 		status, err := worker.sm.Set(statusPath, status.Status{
 			VolumeName: volumeName,
@@ -197,7 +198,7 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")
 		}
-		if err := puller.Pull(ctx, reference, modelDir, excludeModelWeights); err != nil {
+		if err := puller.Pull(ctx, reference, modelDir, excludeModelWeights, excludeFilePatterns); err != nil {
 			if errors.Is(err, context.Canceled) {
 				err = errors.Wrapf(err, "pull model canceled")
 				if _, err2 := setStatus(status.StatePullCanceled); err2 != nil {

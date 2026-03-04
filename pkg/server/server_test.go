@@ -33,7 +33,7 @@ type mockPuller struct {
 }
 
 func (puller *mockPuller) Pull(
-	ctx context.Context, reference, targetDir string, excludeModelWeights bool,
+	ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string,
 ) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err

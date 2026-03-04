@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,6 +68,12 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyExcludeModelWeights(), err)
 		}
 	}
+	excludeFilePatterns := []string{}
+	if excludeFilePatternsParam := strings.TrimSpace(parameters[s.cfg.Get().ParameterKeyExcludeFilePatterns()]); excludeFilePatternsParam != "" {
+		if err := json.Unmarshal([]byte(excludeFilePatternsParam), &excludeFilePatterns); err != nil {
+			return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyExcludeFilePatterns(), err)
+		}
+	}
 
 	parentSpan := trace.SpanFromContext(ctx)
 	parentSpan.SetAttributes(attribute.String("volume_name", volumeName))
@@ -78,7 +85,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 		startedAt := time.Now()
 		ctx, span := tracing.Tracer.Start(ctx, "PullModel")
 		span.SetAttributes(attribute.String("model_dir", modelDir))
-		if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, "", modelReference, modelDir, checkDiskQuota, excludeModelWeights); err != nil {
+		if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, "", modelReference, modelDir, checkDiskQuota, excludeModelWeights, excludeFilePatterns); err != nil {
 			span.SetStatus(otelCodes.Error, "failed to pull model")
 			span.RecordError(err)
 			span.End()
@@ -111,7 +118,7 @@ func (s *Service) localCreateVolume(ctx context.Context, req *csi.CreateVolumeRe
 	startedAt := time.Now()
 	ctx, span := tracing.Tracer.Start(ctx, "PullModel")
 	span.SetAttributes(attribute.String("model_dir", modelDir))
-	if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, mountID, modelReference, modelDir, checkDiskQuota, excludeModelWeights); err != nil {
+	if err := s.worker.PullModel(ctx, isStaticVolume, volumeName, mountID, modelReference, modelDir, checkDiskQuota, excludeModelWeights, excludeFilePatterns); err != nil {
 		span.SetStatus(otelCodes.Error, "failed to pull model")
 		span.RecordError(err)
 		span.End()

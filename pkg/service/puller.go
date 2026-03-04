@@ -22,7 +22,7 @@ type PullHook interface {
 }
 
 type Puller interface {
-	Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool) error
+	Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string) error
 }
 
 var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
@@ -39,7 +39,7 @@ type puller struct {
 	diskQuotaChecker *DiskQuotaChecker
 }
 
-func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool) error {
+func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string) error {
 	keyChain, err := auth.GetKeyChainByRef(reference)
 	if err != nil {
 		return errors.Wrapf(err, "get auth for model: %s", reference)
@@ -54,7 +54,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 	modelArtifact := NewModelArtifact(b, reference, plainHTTP)
 
 	if p.diskQuotaChecker != nil {
-		if err := p.diskQuotaChecker.Check(ctx, modelArtifact, excludeModelWeights); err != nil {
+		if err := p.diskQuotaChecker.Check(ctx, modelArtifact, excludeModelWeights, excludeFilePatterns); err != nil {
 			return errors.Wrap(err, "check disk quota")
 		}
 	}
@@ -63,7 +63,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 		return errors.Wrapf(err, "create model dir: %s", targetDir)
 	}
 
-	if !excludeModelWeights {
+	if !excludeModelWeights && len(excludeFilePatterns) == 0 {
 		pullConfig := modctlConfig.NewPull()
 		pullConfig.Concurrency = int(p.pullCfg.Concurrency)
 		pullConfig.PlainHTTP = plainHTTP
@@ -84,7 +84,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 		return nil
 	}
 
-	patterns, total, err := modelArtifact.GetPatterns(ctx, excludeModelWeights)
+	patterns, total, err := modelArtifact.GetPatterns(ctx, excludeModelWeights, excludeFilePatterns)
 	if err != nil {
 		return errors.Wrap(err, "get model file patterns without weights")
 	}

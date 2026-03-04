@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -103,9 +104,15 @@ func (s *Service) nodePublishVolume(
 				return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyExcludeModelWeights(), err)
 			}
 		}
+		excludeFilePatterns := []string{}
+		if excludeFilePatternsParam := strings.TrimSpace(volumeAttributes[s.cfg.Get().ParameterKeyExcludeFilePatterns()]); excludeFilePatternsParam != "" {
+			if err := json.Unmarshal([]byte(excludeFilePatternsParam), &excludeFilePatterns); err != nil {
+				return nil, isStaticVolume, status.Errorf(codes.InvalidArgument, "invalid parameter:%s: %v", s.cfg.Get().ParameterKeyExcludeFilePatterns(), err)
+			}
+		}
 
 		logger.WithContext(ctx).Infof("publishing static inline volume: %s", staticInlineModelReference)
-		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference, excludeModelWeights)
+		resp, err := s.nodePublishVolumeStaticInlineVolume(ctx, volumeID, targetPath, staticInlineModelReference, excludeModelWeights, excludeFilePatterns)
 		return resp, isStaticVolume, err
 	}
 

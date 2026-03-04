@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -86,14 +87,23 @@ func (h *DynamicServerHandler) CreateVolume(c echo.Context) error {
 		})
 	}
 
-	_, err := h.svc.CreateVolume(c.Request().Context(), &csi.CreateVolumeRequest{
+	excludeFilePatternsJSON, err := json.Marshal(req.ExcludeFilePatterns)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:    ERR_CODE_INVALID_ARGUMENT,
+			Message: "invalid exclude_file_patterns",
+		})
+	}
+
+	_, err = h.svc.CreateVolume(c.Request().Context(), &csi.CreateVolumeRequest{
 		Name: volumeName,
 		Parameters: map[string]string{
-			h.cfg.Get().ParameterKeyType():                "image",
-			h.cfg.Get().ParameterKeyReference():           req.Reference,
-			h.cfg.Get().ParameterKeyMountID():             req.MountID,
-			h.cfg.Get().ParameterKeyCheckDiskQuota():      strconv.FormatBool(req.CheckDiskQuota),
-			h.cfg.Get().ParameterKeyExcludeModelWeights(): strconv.FormatBool(req.ExcludeModelWeights),
+			h.cfg.Get().ParameterKeyType():                 "image",
+			h.cfg.Get().ParameterKeyReference():            req.Reference,
+			h.cfg.Get().ParameterKeyMountID():              req.MountID,
+			h.cfg.Get().ParameterKeyCheckDiskQuota():       strconv.FormatBool(req.CheckDiskQuota),
+			h.cfg.Get().ParameterKeyExcludeModelWeights():  strconv.FormatBool(req.ExcludeModelWeights),
+			h.cfg.Get().ParameterKeyExcludeFilePatterns():  string(excludeFilePatternsJSON),
 		},
 	})
 	if err != nil {

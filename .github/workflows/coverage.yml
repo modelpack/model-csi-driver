@@ -8,8 +8,15 @@ on:
     branches: [main, release-*]
     paths-ignore: ['**.md', '**.png', '**.jpg', '**.svg', '**/docs/**']
 
+# Only read-only permissions needed here.
+# PR comments are posted by coverage-comment.yml via workflow_run
+# so that fork PRs can also receive comments with write access.
 permissions:
   contents: read
+
+env:
+  THRESHOLD_TOTAL: 70    # overall coverage threshold (%)
+  THRESHOLD_DIFF: 90     # changed-line coverage threshold (%)
 
 jobs:
   coverage:
@@ -18,6 +25,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for diff coverage
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -34,29 +43,116 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Run tests with coverage
-        run: |
-          sudo make test-coverage
+      # ── Run tests ────────────────────────────────────────────────────────────
+      - name: Run tests with coverage (excluding pkg/server)
+        run: make test-coverage-ci
 
-      - name: Generate coverage report
-        run: |
-          go tool cover -func=coverage.out > coverage.txt
+      # ── Convert coverage format for diff-cover ────────────────────────────
+      - name: Install gocover-cobertura
+        run: go install github.com/t-yuki/gocover-cobertura@latest
 
-      - name: Display coverage summary
+      - name: Convert to Cobertura XML
+        run: gocover-cobertura < coverage.out > coverage.xml
+
+      - name: Install diff-cover
+        run: pip install diff-cover
+
+      # ── Check total coverage threshold ───────────────────────────────────
+      - name: Check total coverage (>= ${{ env.THRESHOLD_TOTAL }}%)
+        id: total_coverage
         run: |
-          echo "## Code Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          tail -1 coverage.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "<details><summary>Detailed Coverage by Package</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat coverage.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          TOTAL=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
+          echo "total=${TOTAL}" >> "$GITHUB_OUTPUT"
+          echo "Total coverage: ${TOTAL}%  (threshold: ${{ env.THRESHOLD_TOTAL }}%)"
+          if awk "BEGIN { exit !( ${TOTAL} + 0 < ${{ env.THRESHOLD_TOTAL }}) }"; then
+            echo "status=fail" >> "$GITHUB_OUTPUT"
+            echo "❌ Total coverage ${TOTAL}% is below the required ${{ env.THRESHOLD_TOTAL }}%"
+          else
+            echo "status=pass" >> "$GITHUB_OUTPUT"
+            echo "✅ Total coverage ${TOTAL}% meets the threshold of ${{ env.THRESHOLD_TOTAL }}%"
+          fi
+
+      # ── Check diff (changed-line) coverage threshold ─────────────────────
+      - name: Fetch base branch for diff
+        if: github.event_name == 'pull_request'
+        run: git fetch origin ${{ github.base_ref }} --depth=1
+
+      - name: Check diff coverage (>= ${{ env.THRESHOLD_DIFF }}%)
+        id: diff_coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE=origin/${{ github.base_ref }}
+          DIFF_OUTPUT=$(diff-cover coverage.xml \
+            --compare-branch="${BASE}" \
+            --fail-under=${{ env.THRESHOLD_DIFF }} \
+            2>&1) && DIFF_EXIT=0 || DIFF_EXIT=$?
+
+          DIFF_PCT=$(echo "$DIFF_OUTPUT" | grep -oP 'Diff coverage is \K[0-9.]+' || echo "N/A")
+          echo "diff_pct=${DIFF_PCT}" >> "$GITHUB_OUTPUT"
+          echo "$DIFF_OUTPUT"
+
+          if [ "$DIFF_EXIT" -ne 0 ]; then
+            echo "diff_status=fail" >> "$GITHUB_OUTPUT"
+          else
+            echo "diff_status=pass" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Generate per-package coverage table ──────────────────────────────
+      - name: Generate coverage report markdown
+        run: |
+          {
+            echo "## 📊 Code Coverage Report"
+            echo ""
+
+            TOTAL="${{ steps.total_coverage.outputs.total }}"
+            STATUS="${{ steps.total_coverage.outputs.status }}"
+            [ "$STATUS" = "pass" ] && ICON="✅" || ICON="❌"
+
+            echo "| Metric | Coverage | Threshold | Status |"
+            echo "|--------|----------|-----------|--------|"
+            echo "| Overall | **${TOTAL}%** | ${{ env.THRESHOLD_TOTAL }}% | ${ICON} |"
+
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              DIFF_PCT="${{ steps.diff_coverage.outputs.diff_pct }}"
+              DIFF_STATUS="${{ steps.diff_coverage.outputs.diff_status }}"
+              [ "$DIFF_STATUS" = "pass" ] && DIFF_ICON="✅" || DIFF_ICON="❌"
+              echo "| Changed lines | **${DIFF_PCT}%** | ${{ env.THRESHOLD_DIFF }}% | ${DIFF_ICON} |"
+            fi
+
+            echo ""
+            echo "<details>"
+            echo "<summary>📦 Per-package breakdown</summary>"
+            echo ""
+            echo '```'
+            go tool cover -func=coverage.out | grep -v "^total:" | \
+              awk '{printf "%-80s %s\n", $1, $3}' | sort
+            echo ""
+            go tool cover -func=coverage.out | grep "^total:"
+            echo '```'
+            echo ""
+            echo "</details>"
+          } > coverage-report.md
+
+      # ── Write step summary ────────────────────────────────────────────────
+      - name: Write job summary
+        run: cat coverage-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Save PR number so the comment workflow can find the right PR ──────
+      - name: Save PR number
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+
+      # ── Upload artifacts (report + pr-number for comment workflow) ────────
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.xml
+            coverage-report.md
+            pr-number.txt
+          retention-days: 14
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -67,3 +163,19 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      # ── Enforce thresholds (after artifacts uploaded so report is always saved) ──
+      - name: Enforce total coverage threshold
+        if: steps.total_coverage.outputs.status == 'fail'
+        run: |
+          echo "❌ Total coverage ${{ steps.total_coverage.outputs.total }}% is below the required ${{ env.THRESHOLD_TOTAL }}%"
+          exit 1
+
+      - name: Enforce diff coverage threshold
+        if: >
+          github.event_name == 'pull_request' &&
+          steps.diff_coverage.outputs.diff_status == 'fail'
+        run: |
+          echo "❌ Changed-line coverage ${{ steps.diff_coverage.outputs.diff_pct }}% is below the required ${{ env.THRESHOLD_DIFF }}%"
+          exit 1
+

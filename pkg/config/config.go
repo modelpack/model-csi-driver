@@ -99,6 +99,10 @@ func (cfg *RawConfig) ParameterKeyExcludeModelWeights() string {
 	return cfg.ServiceName + "/exclude-model-weights"
 }
 
+func (cfg *RawConfig) ParameterKeyExcludeFilePatterns() string {
+	return cfg.ServiceName + "/exclude-file-patterns"
+}
+
 // /var/lib/dragonfly/model-csi/volumes
 func (cfg *RawConfig) GetVolumesDir() string {
 	return filepath.Join(cfg.RootDir, "volumes")

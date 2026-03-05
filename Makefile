@@ -13,7 +13,7 @@ REVISION=$(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet 
 
 RELEASE_INFO = -X main.revision=${REVISION} -X main.gitVersion=${VERSION} -X main.buildTime=${BUILD_TIMESTAMP}
 
-.PHONY: release test test-coverage
+.PHONY: release test test-coverage test-coverage-ci
 
 release:
 	@CGO_ENABLED=0 ${PROXY} GOOS=linux GOARCH=${GOARCH} go vet -tags disable_libgit2 $(PACKAGES)
@@ -47,4 +47,18 @@ test-coverage:
 		rm coverage.server.out; \
 	fi
 	@rm -f ./server.test
+	@echo "Coverage report generated: coverage.out"
+
+# CI-friendly coverage: no sudo required, excludes pkg/server, uses -coverpkg for
+# cross-package coverage so every package's contribution is reflected in the report.
+test-coverage-ci:
+	@echo "Running CI coverage (excluding pkg/server)..."
+	$(eval PKGS := $(shell go list -tags disable_libgit2 ./pkg/... | grep -v pkg/server))
+	$(eval COVERPKG := $(shell go list -tags disable_libgit2 ./pkg/... | grep -v pkg/server | tr '\n' ',' | sed 's/,$$//'))  
+	@go test -tags disable_libgit2 -race \
+		-coverprofile=coverage.out \
+		-coverpkg=$(COVERPKG) \
+		-covermode=atomic \
+		-timeout 10m \
+		$(PKGS)
 	@echo "Coverage report generated: coverage.out"

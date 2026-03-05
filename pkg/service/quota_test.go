@@ -147,7 +147,7 @@ func TestDiskQuotaChecker(t *testing.T) {
 	modelArtifact := NewModelArtifact(b, "test/model:latest", true)
 
 	checker := NewDiskQuotaChecker(cfg)
-	err = checker.Check(ctx, modelArtifact, false)
+	err = checker.Check(ctx, modelArtifact, false, nil)
 	require.NoError(t, err)
 
 	// Test case 2: Failed quota check with insufficient space
@@ -155,12 +155,12 @@ func TestDiskQuotaChecker(t *testing.T) {
 	// The used size is 8MiB
 	err = os.WriteFile(filepath.Join(tmpDir, "file-2"), make([]byte, 7*1024*1024), 0644)
 	require.NoError(t, err)
-	err = checker.Check(ctx, modelArtifact, false)
+	err = checker.Check(ctx, modelArtifact, false, nil)
 	require.True(t, errors.Is(err, syscall.ENOSPC))
 
 	// Update the DiskUsageLimit to 13MiB + 4096KiB
 	cfg.Get().Features.DiskUsageLimit = 13*1024*1024 + 4096
-	err = checker.Check(ctx, modelArtifact, false)
+	err = checker.Check(ctx, modelArtifact, false, nil)
 	require.NoError(t, err)
 
 	// Test case 3: Check with DiskUsageLimit = 0 (use available disk space)
@@ -177,7 +177,7 @@ func TestDiskQuotaChecker(t *testing.T) {
 		})
 	defer patchStatfs.Reset()
 
-	err = checker.Check(ctx, modelArtifact, false)
+	err = checker.Check(ctx, modelArtifact, false, nil)
 	require.True(t, errors.Is(err, syscall.ENOSPC))
 
 	// Mock syscall.Statfs to 5MiB available space
@@ -189,6 +189,6 @@ func TestDiskQuotaChecker(t *testing.T) {
 		})
 	defer patchStatfs.Reset()
 
-	err = checker.Check(ctx, modelArtifact, false)
+	err = checker.Check(ctx, modelArtifact, false, nil)
 	require.NoError(t, err)
 }

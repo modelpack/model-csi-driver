@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,16 +11,15 @@ import (
 	"github.com/modelpack/model-csi-driver/pkg/mounter"
 	modelStatus "github.com/modelpack/model-csi-driver/pkg/status"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func (s *Service) nodePublishVolumeStaticInlineVolume(ctx context.Context, volumeName, targetPath, reference string, excludeModelWeights bool) (*csi.NodePublishVolumeResponse, error) {
+func (s *Service) nodePublishVolumeStaticInlineVolume(ctx context.Context, volumeName, targetPath, reference string, excludeModelWeights bool, excludeFilePatterns []string) (*csi.NodePublishVolumeResponse, error) {
 	modelDir := s.cfg.Get().GetModelDir(volumeName)
 
 	startedAt := time.Now()
-	if err := s.worker.PullModel(ctx, true, volumeName, "", reference, modelDir, false, excludeModelWeights); err != nil {
+	if err := s.worker.PullModel(ctx, true, volumeName, "", reference, modelDir, false, excludeModelWeights, excludeFilePatterns); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrap(err, "pull model").Error())
 	}
 	duration := time.Since(startedAt)

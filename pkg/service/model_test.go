@@ -50,19 +50,99 @@ func TestModelArtifact(t *testing.T) {
 
 	modelArtifact := NewModelArtifact(b, "test/model:latest", true)
 
-	size, err := modelArtifact.GetSize(ctx, false)
+	size, err := modelArtifact.GetSize(ctx, false, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(5*1024*1024), size)
 
-	size, err = modelArtifact.GetSize(ctx, true)
+	size, err = modelArtifact.GetSize(ctx, true, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(2*1024*1024), size)
 
-	paths, err := modelArtifact.GetPatterns(ctx, false)
+	paths, total, err := modelArtifact.GetPatterns(ctx, false, nil)
 	require.NoError(t, err)
+	require.Equal(t, 3, total)
 	require.Equal(t, []string{"foo.safetensors", "README.md", "bar.zoo.safetensors"}, paths)
 
-	paths, err = modelArtifact.GetPatterns(ctx, true)
+	paths, total, err = modelArtifact.GetPatterns(ctx, true, nil)
+	require.NoError(t, err)
+	require.Equal(t, 3, total)
+	require.Equal(t, []string{"README.md"}, paths)
+
+	// exclude_file_patterns > exclude_model_weights:
+	// negation pattern "!foo.safetensors" forces inclusion of that weight file
+	// even though exclude_model_weights=true would normally omit it.
+	paths, _, err = modelArtifact.GetPatterns(ctx, true, []string{"!foo.safetensors"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"foo.safetensors", "README.md"}, paths)
+
+	// Exclude by glob pattern only (no exclude_model_weights)
+	paths, _, err = modelArtifact.GetPatterns(ctx, false, []string{"*.safetensors"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"README.md"}, paths)
+
+	// Exclude by glob, then negate a specific file: last match wins.
+	paths, _, err = modelArtifact.GetPatterns(ctx, false, []string{"*.safetensors", "!foo.safetensors"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"foo.safetensors", "README.md"}, paths)
+}
+
+func TestMatchFilePatterns(t *testing.T) {
+	tests := []struct {
+		name         string
+		filename     string
+		patterns     []string
+		wantMatched  bool
+		wantExcluded bool
+	}{
+		{
+			name:         "no patterns",
+			filename:     "model.safetensors",
+			patterns:     nil,
+			wantMatched:  false,
+			wantExcluded: false,
+		},
+		{
+			name:         "exact match excludes",
+			filename:     "model.safetensors.index.json",
+			patterns:     []string{"model.safetensors.index.json"},
+			wantMatched:  true,
+			wantExcluded: true,
+		},
+		{
+			name:         "glob match excludes",
+			filename:     "model-00001-of-00003.safetensors",
+			patterns:     []string{"*.safetensors"},
+			wantMatched:  true,
+			wantExcluded: true,
+		},
+		{
+			name:         "negation overrides earlier exclude",
+			filename:     "tiktoken.model",
+			patterns:     []string{"*.model", "!tiktoken.model"},
+			wantMatched:  true,
+			wantExcluded: false,
+		},
+		{
+			name:         "last matching pattern wins (exclude after negate)",
+			filename:     "tiktoken.model",
+			patterns:     []string{"!tiktoken.model", "*.model"},
+			wantMatched:  true,
+			wantExcluded: true,
+		},
+		{
+			name:         "no match returns unmatched",
+			filename:     "README.md",
+			patterns:     []string{"*.safetensors"},
+			wantMatched:  false,
+			wantExcluded: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			matched, excluded := matchFilePatterns(tc.filename, tc.patterns)
+			require.Equal(t, tc.wantMatched, matched)
+			require.Equal(t, tc.wantExcluded, excluded)
+		})
+	}
 }

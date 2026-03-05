@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 )
 
 type DiskQuotaChecker struct {
@@ -64,7 +64,7 @@ func humanizeBytes(size int64) string {
 // If cfg.Features.CheckDiskQuota is enabled and the Mount request specifies checkDiskQuota = true:
 // - When cfg.Features.DiskUsageLimit == 0: reject if available disk space < model size;
 // - When cfg.Features.DiskUsageLimit > 0: reject if (cfg.Features.DiskUsageLimit - used space) < model size;
-func (d *DiskQuotaChecker) Check(ctx context.Context, modelArtifact *ModelArtifact, excludeModelWeights bool) error {
+func (d *DiskQuotaChecker) Check(ctx context.Context, modelArtifact *ModelArtifact, excludeModelWeights bool, excludeFilePatterns []string) error {
 	availSize := int64(0)
 
 	if d.cfg.Get().Features.DiskUsageLimit > 0 {
@@ -82,7 +82,7 @@ func (d *DiskQuotaChecker) Check(ctx context.Context, modelArtifact *ModelArtifa
 	}
 
 	start := time.Now()
-	modelSize, err := modelArtifact.GetSize(ctx, excludeModelWeights)
+	modelSize, err := modelArtifact.GetSize(ctx, excludeModelWeights, excludeFilePatterns)
 	if err != nil {
 		return errors.Wrap(err, "get model size")
 	}

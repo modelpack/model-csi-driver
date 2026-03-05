@@ -1,0 +1,52 @@
+name: Coverage Comment
+
+# This workflow runs AFTER "Code Coverage" completes and posts the coverage
+# report as a PR comment.  It is intentionally separated because:
+#   - The "Code Coverage" workflow runs in the context of the PR head commit
+#     and therefore has NO write access to pull-requests (GitHub security model
+#     for fork PRs).
+#   - This workflow runs in the context of the base branch and therefore CAN
+#     write PR comments, even for PRs opened from forks.
+on:
+  workflow_run:
+    workflows: ["Code Coverage"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write   # needed to create / update the comment
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    # Only run when the triggering workflow succeeded or failed (not skipped).
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      (github.event.workflow_run.conclusion == 'success' ||
+       github.event.workflow_run.conclusion == 'failure')
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Download from the triggering workflow run, not the current one.
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Read PR number
+        id: pr
+        run: |
+          if [ -f pr-number.txt ]; then
+            echo "number=$(cat pr-number.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post coverage comment on PR
+        if: steps.pr.outputs.number != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: code-coverage
+          number: ${{ steps.pr.outputs.number }}
+          path: coverage-report.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

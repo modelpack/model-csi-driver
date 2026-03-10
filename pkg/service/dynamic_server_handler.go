@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -86,6 +87,15 @@ func (h *DynamicServerHandler) CreateVolume(c echo.Context) error {
 		})
 	}
 
+	excludeFilesJSON := "[]"
+	if len(req.ExcludeFilePatterns) > 0 {
+		jsonBytes, err := json.Marshal(req.ExcludeFilePatterns)
+		if err != nil {
+			return handleError(c, fmt.Errorf("marshal exclude_file_patterns: %w", err))
+		}
+		excludeFilesJSON = string(jsonBytes)
+	}
+
 	_, err := h.svc.CreateVolume(c.Request().Context(), &csi.CreateVolumeRequest{
 		Name: volumeName,
 		Parameters: map[string]string{
@@ -94,6 +104,7 @@ func (h *DynamicServerHandler) CreateVolume(c echo.Context) error {
 			h.cfg.Get().ParameterKeyMountID():             req.MountID,
 			h.cfg.Get().ParameterKeyCheckDiskQuota():      strconv.FormatBool(req.CheckDiskQuota),
 			h.cfg.Get().ParameterKeyExcludeModelWeights(): strconv.FormatBool(req.ExcludeModelWeights),
+			h.cfg.Get().ParameterKeyExcludeFiles():        excludeFilesJSON,
 		},
 	})
 	if err != nil {

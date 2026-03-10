@@ -1,0 +1,5 @@
+service_name: "model.csi.modelpack.org"
+csi_endpoint: "/tmp/csi.sock"
+root_dir: "/tmp/model-csi"
+pull_config:
+  concurrency: 5

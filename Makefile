@@ -56,9 +56,11 @@ test-coverage-ci:
 	$(eval PKGS := $(shell go list -tags disable_libgit2 ./pkg/... | grep -v pkg/server))
 	$(eval COVERPKG := $(shell go list -tags disable_libgit2 ./pkg/... | grep -v pkg/server | tr '\n' ',' | sed 's/,$$//'))  
 	@go test -tags disable_libgit2 -race \
-		-coverprofile=coverage.out \
+		-coverprofile=coverage.raw.out \
 		-coverpkg=$(COVERPKG) \
 		-covermode=atomic \
 		-timeout 10m \
 		$(PKGS)
+	@awk 'NR == 1 { print; next } { key = $$1 " " $$2; count[key] += $$3; if (!(key in seen)) { seen[key] = 1; order[++n] = key } } END { for (i = 1; i <= n; i++) print order[i], count[order[i]] }' coverage.raw.out > coverage.out
+	@rm -f coverage.raw.out
 	@echo "Coverage report generated: coverage.out"

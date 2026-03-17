@@ -13,6 +13,7 @@ on:
     types: [completed]
 
 permissions:
+  actions: read
   contents: read
   pull-requests: write   # needed to create / update the comment
 
@@ -26,9 +27,12 @@ jobs:
        github.event.workflow_run.conclusion == 'failure')
     steps:
       - name: Download coverage artifacts
+        id: download
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: coverage-report
+          path: coverage-artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
           # Download from the triggering workflow run, not the current one.
           run-id: ${{ github.event.workflow_run.id }}
@@ -36,10 +40,26 @@ jobs:
       - name: Read PR number
         id: pr
         run: |
-          if [ -f pr-number.txt ]; then
-            echo "number=$(cat pr-number.txt)" >> "$GITHUB_OUTPUT"
+          if [ -f coverage-artifact/pr-number.txt ]; then
+            echo "number=$(cat coverage-artifact/pr-number.txt)" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.workflow_run.pull_requests[0].number }}" ]; then
+            echo "number=${{ github.event.workflow_run.pull_requests[0].number }}" >> "$GITHUB_OUTPUT"
           else
             echo "number=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare coverage comment body
+        run: |
+          if [ -f coverage-artifact/coverage-report.md ]; then
+            cp coverage-artifact/coverage-report.md coverage-report.md
+          else
+            printf '%s\n' \
+              '## 📊 Code Coverage Report' \
+              '' \
+              'Coverage workflow concluded with **${{ github.event.workflow_run.conclusion }}**, but no coverage report artifact was available.' \
+              '' \
+              'Triggering workflow run: ${{ github.event.workflow_run.html_url }}' \
+              > coverage-report.md
           fi
 
       - name: Post coverage comment on PR

@@ -54,6 +54,11 @@ jobs:
       - name: Convert to Cobertura XML
         run: gocover-cobertura < coverage.out > coverage.xml
 
+      - name: Normalize Cobertura paths for diff-cover
+        run: |
+          MODULE_PATH=$(go list -m)
+          python3 -c "from pathlib import Path; import sys; module = sys.argv[1].rstrip('/') + '/'; path = Path('coverage.xml'); path.write_text(path.read_text(encoding='utf-8').replace(f'filename=\"{module}', 'filename=\"'), encoding='utf-8')" "$MODULE_PATH"
+
       - name: Install diff-cover
         run: pip install diff-cover
 
@@ -84,15 +89,32 @@ jobs:
           BASE=origin/${{ github.base_ref }}
           DIFF_OUTPUT=$(diff-cover coverage.xml \
             --compare-branch="${BASE}" \
+            --format json:diff-cover.json \
             --fail-under=${{ env.THRESHOLD_DIFF }} \
             2>&1) && DIFF_EXIT=0 || DIFF_EXIT=$?
 
-          DIFF_PCT=$(echo "$DIFF_OUTPUT" | grep -oP 'Diff coverage is \K[0-9.]+' || echo "N/A")
+          if [ -f diff-cover.json ]; then
+            DIFF_PCT=$(python3 -c "import json; report=json.load(open('diff-cover.json', encoding='utf-8')); num_changed_lines=report.get('num_changed_lines', 0); total_num_lines=report.get('total_num_lines', 0); total_percent_covered=report.get('total_percent_covered', 'N/A'); print('N/A' if num_changed_lines > 0 and total_num_lines == 0 else total_percent_covered)")
+          else
+            DIFF_PCT="N/A"
+          fi
+
+          if [ "$DIFF_PCT" = "N/A" ]; then
+            DIFF_DISPLAY="N/A"
+          else
+            DIFF_DISPLAY="${DIFF_PCT}%"
+          fi
+
           echo "diff_pct=${DIFF_PCT}" >> "$GITHUB_OUTPUT"
+          echo "diff_display=${DIFF_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "$DIFF_OUTPUT"
 
-          if [ "$DIFF_EXIT" -ne 0 ]; then
+          if [ "$DIFF_EXIT" -ne 0 ] || [ "$DIFF_PCT" = "N/A" ]; then
             echo "diff_status=fail" >> "$GITHUB_OUTPUT"
+
+            if [ "$DIFF_PCT" = "N/A" ]; then
+              echo "❌ Changed-line coverage could not be computed because diff-cover found changed lines without matching coverage information."
+            fi
           else
             echo "diff_status=pass" >> "$GITHUB_OUTPUT"
           fi
@@ -106,6 +128,7 @@ jobs:
 
             TOTAL="${{ steps.total_coverage.outputs.total }}"
             STATUS="${{ steps.total_coverage.outputs.status }}"
+            [ -n "$TOTAL" ] || TOTAL="N/A"
             [ "$STATUS" = "pass" ] && ICON="✅" || ICON="❌"
 
             echo "| Metric | Coverage | Threshold | Status |"
@@ -113,24 +136,30 @@ jobs:
             echo "| Overall | **${TOTAL}%** | ${{ env.THRESHOLD_TOTAL }}% | ${ICON} |"
 
             if [ "${{ github.event_name }}" = "pull_request" ]; then
-              DIFF_PCT="${{ steps.diff_coverage.outputs.diff_pct }}"
+              DIFF_DISPLAY="${{ steps.diff_coverage.outputs.diff_display }}"
               DIFF_STATUS="${{ steps.diff_coverage.outputs.diff_status }}"
+              [ -n "$DIFF_DISPLAY" ] || DIFF_DISPLAY="N/A"
               [ "$DIFF_STATUS" = "pass" ] && DIFF_ICON="✅" || DIFF_ICON="❌"
-              echo "| Changed lines | **${DIFF_PCT}%** | ${{ env.THRESHOLD_DIFF }}% | ${DIFF_ICON} |"
+              echo "| Changed lines | **${DIFF_DISPLAY}** | ${{ env.THRESHOLD_DIFF }}% | ${DIFF_ICON} |"
             fi
 
-            echo ""
-            echo "<details>"
-            echo "<summary>📦 Per-package breakdown</summary>"
-            echo ""
-            echo '```'
-            go tool cover -func=coverage.out | grep -v "^total:" | \
-              awk '{printf "%-80s %s\n", $1, $3}' | sort
-            echo ""
-            go tool cover -func=coverage.out | grep "^total:"
-            echo '```'
-            echo ""
-            echo "</details>"
+            if [ -f coverage.out ]; then
+              echo ""
+              echo "<details>"
+              echo "<summary>📦 Per-package breakdown</summary>"
+              echo ""
+              echo '```'
+              go tool cover -func=coverage.out | grep -v "^total:" | \
+                awk '{printf "%-80s %s\n", $1, $3}' | sort
+              echo ""
+              go tool cover -func=coverage.out | grep "^total:"
+              echo '```'
+              echo ""
+              echo "</details>"
+            else
+              echo ""
+              echo "Coverage artifacts were not generated because the workflow failed before coverage collection completed."
+            fi
           } > coverage-report.md
 
       # ── Write step summary ────────────────────────────────────────────────
@@ -150,8 +179,10 @@ jobs:
           path: |
             coverage.out
             coverage.xml
+            diff-cover.json
             coverage-report.md
             pr-number.txt
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload coverage to Codecov
@@ -176,6 +207,6 @@ jobs:
           github.event_name == 'pull_request' &&
           steps.diff_coverage.outputs.diff_status == 'fail'
         run: |
-          echo "❌ Changed-line coverage ${{ steps.diff_coverage.outputs.diff_pct }}% is below the required ${{ env.THRESHOLD_DIFF }}%"
+          echo "❌ Changed-line coverage ${{ steps.diff_coverage.outputs.diff_display }} is below the required ${{ env.THRESHOLD_DIFF }}%"
           exit 1
 

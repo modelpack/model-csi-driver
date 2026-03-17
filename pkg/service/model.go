@@ -65,6 +65,34 @@ func NewModelArtifact(b backend.Backend, reference string, plainHTTP bool) *Mode
 	}
 }
 
+func (m *ModelArtifact) Inspect(ctx context.Context, reference string) (*backend.InspectedModelArtifact, error) {
+	start := time.Now()
+	defer func() {
+		logger.Logger().WithContext(ctx).Infof(
+			"inspected model %s, duration: %s", reference, time.Since(start),
+		)
+	}()
+	var result any
+	if err := utils.WithRetry(ctx, func() error {
+		var err error
+		result, err = m.b.Inspect(ctx, reference, &modctlConfig.Inspect{
+			Remote:    true,
+			Insecure:  true,
+			PlainHTTP: m.plainHTTP,
+		})
+		return err
+	}, 3, 1*time.Second); err != nil {
+		return nil, errors.Wrapf(err, "inspect model: %s", reference)
+	}
+
+	artifact, ok := result.(*backend.InspectedModelArtifact)
+	if !ok {
+		return nil, errors.Errorf("invalid inspected result: %s", reference)
+	}
+
+	return artifact, nil
+}
+
 func (m *ModelArtifact) inspect(ctx context.Context) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -73,29 +101,11 @@ func (m *ModelArtifact) inspect(ctx context.Context) error {
 		return nil
 	}
 
-	start := time.Now()
-	defer func() {
-		logger.Logger().WithContext(ctx).Infof(
-			"inspected model %s, duration: %s", m.Reference, time.Since(start),
-		)
-	}()
-	var result any
-	if err := utils.WithRetry(ctx, func() error {
-		var err error
-		result, err = m.b.Inspect(ctx, m.Reference, &modctlConfig.Inspect{
-			Remote:    true,
-			Insecure:  true,
-			PlainHTTP: m.plainHTTP,
-		})
-		return err
-	}, 3, 1*time.Second); err != nil {
+	artifact, err := m.Inspect(ctx, m.Reference)
+	if err != nil {
 		return errors.Wrapf(err, "inspect model: %s", m.Reference)
 	}
 
-	artifact, ok := result.(*backend.InspectedModelArtifact)
-	if !ok {
-		return errors.Errorf("invalid inspected result: %s", m.Reference)
-	}
 	m.artifact = artifact
 
 	return nil

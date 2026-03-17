@@ -2,16 +2,21 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
+	"github.com/agiledragon/gomonkey/v2"
 	"github.com/labstack/echo/v4"
+	"github.com/modelpack/modctl/pkg/backend"
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	grpcStatus "google.golang.org/grpc/status"
+	"oras.land/oras-go/v2/errdef"
 )
 
 // --- checkIdentifier ---
@@ -198,4 +203,64 @@ func TestDynamicServerHandler_ListVolumes_EmptyDir(t *testing.T) {
 	_ = h.ListVolumes(c)
 	// Non-existent models dir → error
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestDynamicServerHandler_GetArtifact_InvalidReference(t *testing.T) {
+	h, _ := newHandler(t)
+	c, rec := newHandlerContextWithParam(t, http.MethodGet, "/", "",
+		[]string{"reference"}, []string{""})
+	_ = h.GetArtifact(c)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestDynamicServerHandler_GetArtifact_NotFound(t *testing.T) {
+	h, svc := newHandler(t)
+	patch := gomonkey.ApplyMethod(reflect.TypeOf(svc), "GetArtifact", func(*Service, context.Context, string) (*backend.InspectedModelArtifact, error) {
+		return nil, errdef.ErrNotFound
+	})
+	defer patch.Reset()
+
+	c, rec := newHandlerContextWithParam(t, http.MethodGet, "/", "",
+		[]string{"reference"}, []string{"example.com/ns/model:latest"})
+	_ = h.GetArtifact(c)
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestDynamicServerHandler_GetArtifact_Success(t *testing.T) {
+	h, svc := newHandler(t)
+	patch := gomonkey.ApplyMethod(reflect.TypeOf(svc), "GetArtifact", func(*Service, context.Context, string) (*backend.InspectedModelArtifact, error) {
+		return &backend.InspectedModelArtifact{
+			ID:        "sha256:config",
+			CreatedAt: "2026-03-17T00:00:00Z",
+			Layers: []backend.InspectedModelArtifactLayer{{
+				MediaType: "application/vnd.oci.image.layer.v1.tar+gzip",
+				Digest:    "sha256:layer",
+				Filepath:  "weights/model.safetensors",
+			}},
+		}, nil
+	})
+	defer patch.Reset()
+
+	c, rec := newHandlerContextWithParam(t, http.MethodGet, "/", "",
+		[]string{"reference"}, []string{"example.com/ns/model:latest"})
+	_ = h.GetArtifact(c)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var actual map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &actual))
+	require.Equal(t, "sha256:config", actual["Id"])
+	require.Equal(t, "2026-03-17T00:00:00Z", actual["CreatedAt"])
+}
+
+func TestDynamicServerHandler_GetArtifact_InternalError(t *testing.T) {
+	h, svc := newHandler(t)
+	patch := gomonkey.ApplyMethod(reflect.TypeOf(svc), "GetArtifact", func(*Service, context.Context, string) (*backend.InspectedModelArtifact, error) {
+		return nil, grpcStatus.Error(codes.InvalidArgument, "bad reference")
+	})
+	defer patch.Reset()
+
+	c, rec := newHandlerContextWithParam(t, http.MethodGet, "/", "",
+		[]string{"reference"}, []string{"example.com/ns/model:latest"})
+	_ = h.GetArtifact(c)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }

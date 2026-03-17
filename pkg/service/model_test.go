@@ -13,6 +13,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestModelArtifactInspect_InvalidResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	b, err := backend.New(filepath.Join(tmpDir, "modctl"))
+	require.NoError(t, err)
+
+	patch := gomonkey.ApplyMethod(b, "Inspect",
+		func(backend.Backend, context.Context, string, *modctlConfig.Inspect) (interface{}, error) {
+			return "invalid", nil
+		})
+	defer patch.Reset()
+
+	modelArtifact := NewModelArtifact(b, "test/model:latest", true)
+	artifact, err := modelArtifact.Inspect(context.Background(), "test/model:latest")
+	require.Nil(t, artifact)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid inspected result: test/model:latest")
+}
+
+func TestModelArtifactInspect_BackendError(t *testing.T) {
+	tmpDir := t.TempDir()
+	b, err := backend.New(filepath.Join(tmpDir, "modctl"))
+	require.NoError(t, err)
+
+	patch := gomonkey.ApplyMethod(b, "Inspect",
+		func(backend.Backend, context.Context, string, *modctlConfig.Inspect) (interface{}, error) {
+			return nil, os.ErrNotExist
+		})
+	defer patch.Reset()
+
+	modelArtifact := NewModelArtifact(b, "test/model:latest", true)
+	artifact, err := modelArtifact.Inspect(context.Background(), "test/model:latest")
+	require.Nil(t, artifact)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "inspect model: test/model:latest")
+}
+
+func TestModelArtifactGetPatterns_InspectError(t *testing.T) {
+	tmpDir := t.TempDir()
+	b, err := backend.New(filepath.Join(tmpDir, "modctl"))
+	require.NoError(t, err)
+
+	patch := gomonkey.ApplyMethod(b, "Inspect",
+		func(backend.Backend, context.Context, string, *modctlConfig.Inspect) (interface{}, error) {
+			return nil, os.ErrPermission
+		})
+	defer patch.Reset()
+
+	modelArtifact := NewModelArtifact(b, "test/model:latest", true)
+	paths, total, err := modelArtifact.GetPatterns(context.Background(), false, nil)
+	require.Nil(t, paths)
+	require.Zero(t, total)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "get layers for model: test/model:latest")
+}
+
 func TestModelArtifact(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "model-artifact-test-")
 	require.NoError(t, err)

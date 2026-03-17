@@ -198,6 +198,8 @@ func (s *DynamicServer) serve() error {
 	s.echo.DELETE("/api/v1/volumes/:volume_name/mounts/:mount_id", handler.DeleteVolume)
 	s.echo.GET("/api/v1/volumes/:volume_name/mounts", handler.ListVolumes)
 
+	s.echo.GET("/api/v1/artifacts/:reference", handler.GetArtifact)
+
 	if err := s.server.Serve(s.listener); err != nil && err != http.ErrServerClosed {
 		return errors.Wrap(err, "serve http server")
 	}

@@ -89,6 +89,11 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 		return errors.Wrap(err, "get model file patterns without weights")
 	}
 
+	if len(patterns) == 0 {
+		logger.WithContext(ctx).Infof("no files to fetch from model: %s", reference)
+		return nil
+	}
+
 	logger.WithContext(ctx).Infof(
 		"fetching partial files from model: %s, files: %s (%d/%d)",
 		reference, strings.Join(patterns, ", "), len(patterns), total,

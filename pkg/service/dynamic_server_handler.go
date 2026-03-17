@@ -16,6 +16,7 @@ import (
 	modelStatus "github.com/modelpack/model-csi-driver/pkg/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"oras.land/oras-go/v2/errdef"
 )
 
 type DynamicServerHandler struct {
@@ -98,12 +99,12 @@ func (h *DynamicServerHandler) CreateVolume(c echo.Context) error {
 	_, err = h.svc.CreateVolume(c.Request().Context(), &csi.CreateVolumeRequest{
 		Name: volumeName,
 		Parameters: map[string]string{
-			h.cfg.Get().ParameterKeyType():                 "image",
-			h.cfg.Get().ParameterKeyReference():            req.Reference,
-			h.cfg.Get().ParameterKeyMountID():              req.MountID,
-			h.cfg.Get().ParameterKeyCheckDiskQuota():       strconv.FormatBool(req.CheckDiskQuota),
-			h.cfg.Get().ParameterKeyExcludeModelWeights():  strconv.FormatBool(req.ExcludeModelWeights),
-			h.cfg.Get().ParameterKeyExcludeFilePatterns():  string(excludeFilePatternsJSON),
+			h.cfg.Get().ParameterKeyType():                "image",
+			h.cfg.Get().ParameterKeyReference():           req.Reference,
+			h.cfg.Get().ParameterKeyMountID():             req.MountID,
+			h.cfg.Get().ParameterKeyCheckDiskQuota():      strconv.FormatBool(req.CheckDiskQuota),
+			h.cfg.Get().ParameterKeyExcludeModelWeights(): strconv.FormatBool(req.ExcludeModelWeights),
+			h.cfg.Get().ParameterKeyExcludeFilePatterns(): string(excludeFilePatternsJSON),
 		},
 	})
 	if err != nil {
@@ -197,4 +198,28 @@ func (h *DynamicServerHandler) ListVolumes(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, statuses)
+}
+
+func (h *DynamicServerHandler) GetArtifact(c echo.Context) error {
+	reference := c.Param("reference")
+
+	if reference == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:    ERR_CODE_INVALID_ARGUMENT,
+			Message: "reference is invalid",
+		})
+	}
+
+	artifact, err := h.svc.GetArtifact(c.Request().Context(), reference)
+	if err != nil {
+		if errors.Is(err, errdef.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, ErrorResponse{
+				Code:    ERR_CODE_NOT_FOUND,
+				Message: fmt.Sprintf("artifact with reference %s is not found", reference),
+			})
+		}
+		return handleError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, artifact)
 }

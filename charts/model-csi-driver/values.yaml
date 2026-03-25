@@ -8,6 +8,10 @@ config:
   # Root working directory for model storage and metadata,
   # must be writable and have enough disk space
   rootDir: /var/lib/model-csi
+  # Deprecated compatibility socket for the legacy shared dynamic CSI server.
+  dynamicCsiEndpoint: unix:///var/run/model-csi/csi.sock
+  # Bind address for Prometheus metrics. POD_IP is provided by the daemonset.
+  metricsAddr: tcp://127.0.0.1:5244
   registryAuths:
     # registry.example.com:
     #   auth: dXNlcm5hbWU6cGFzc3dvcmQ=

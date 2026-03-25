@@ -7,7 +7,9 @@ data:
   config.yaml: |-
     service_name: {{ .Values.config.serviceName }}
     root_dir: {{ .Values.config.rootDir }}
+    dynamic_csi_endpoint: {{ .Values.config.dynamicCsiEndpoint }}
     csi_endpoint: unix:///csi/csi.sock
+    metrics_addr: {{ .Values.config.metricsAddr }}
     {{- with .Values.config.pullConfig }}
     pull_config:
       {{- toYaml . | nindent 6 }}

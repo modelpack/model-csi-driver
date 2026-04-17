@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 
 	"github.com/dustin/go-humanize"
@@ -106,6 +107,25 @@ func (cfg *RawConfig) ParameterKeyExcludeFilePatterns() string {
 // /var/lib/dragonfly/model-csi/volumes
 func (cfg *RawConfig) GetVolumesDir() string {
 	return filepath.Join(cfg.RootDir, "volumes")
+}
+
+// /var/lib/dragonfly/model-csi/cache
+func (cfg *RawConfig) GetCacheDir() string {
+	return filepath.Join(cfg.RootDir, "cache")
+}
+
+// /var/lib/dragonfly/model-csi/cache/sha256
+func (cfg *RawConfig) GetCacheSHA256Dir() string {
+	return filepath.Join(cfg.GetCacheDir(), "sha256")
+}
+
+func (cfg *RawConfig) GetCacheKey(resolvedDigest string) string {
+	return strings.TrimPrefix(resolvedDigest, "sha256:")
+}
+
+// /var/lib/dragonfly/model-csi/cache/sha256/<digest-hex>
+func (cfg *RawConfig) GetCacheModelDir(resolvedDigest string) string {
+	return filepath.Join(cfg.GetCacheSHA256Dir(), cfg.GetCacheKey(resolvedDigest))
 }
 
 // /var/lib/dragonfly/model-csi/volumes/$volumeName

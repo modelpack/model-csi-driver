@@ -131,7 +131,94 @@ func (worker *Worker) PullModel(
 	start := time.Now()
 
 	statusPath := filepath.Join(filepath.Dir(modelDir), "status.json")
-	err := worker.pullModel(ctx, statusPath, volumeName, mountID, reference, modelDir, checkDiskQuota, excludeModelWeights, excludeFilePatterns)
+	resolvedDigest, err := worker.resolveReferenceDigest(ctx, reference)
+	if err != nil {
+		logger.WithContext(ctx).WithError(err).Warnf("failed to resolve reference digest, fallback to direct pull: %s", reference)
+		err = worker.pullModel(
+			ctx,
+			statusPath,
+			volumeName,
+			mountID,
+			reference,
+			"",
+			modelDir,
+			checkDiskQuota,
+			excludeModelWeights,
+			excludeFilePatterns,
+		)
+		metrics.NodeOpObserve("pull_image", start, err)
+		if err != nil && !errors.Is(err, ErrConflict) {
+			if err2 := worker.DeleteModel(ctx, isStaticVolume, volumeName, mountID); err2 != nil {
+				return errors.Wrapf(err, "delete model: %v", err2)
+			}
+		}
+		return err
+	}
+
+	cacheModelDir := worker.cfg.Get().GetCacheModelDir(resolvedDigest)
+	_, err, _ = worker.inflight.Do("cache-"+resolvedDigest, func() (interface{}, error) {
+		sourceModelDir, found, err := worker.getCachedModelDir(resolvedDigest)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			cacheTmpModelDir := cacheModelDir + ".pulling"
+			if err := os.MkdirAll(filepath.Dir(cacheModelDir), 0755); err != nil {
+				return nil, errors.Wrapf(err, "create cache dir: %s", cacheModelDir)
+			}
+			if err := os.RemoveAll(cacheTmpModelDir); err != nil {
+				return nil, errors.Wrapf(err, "cleanup temporary cache model dir: %s", cacheTmpModelDir)
+			}
+			err = worker.pullModel(
+				ctx,
+				statusPath,
+				volumeName,
+				mountID,
+				reference,
+				resolvedDigest,
+				cacheTmpModelDir,
+				checkDiskQuota,
+				excludeModelWeights,
+				excludeFilePatterns,
+			)
+			if err != nil {
+				_ = os.RemoveAll(cacheTmpModelDir)
+				return nil, err
+			}
+			if err := os.RemoveAll(cacheModelDir); err != nil {
+				_ = os.RemoveAll(cacheTmpModelDir)
+				return nil, errors.Wrapf(err, "cleanup cache model dir before rename: %s", cacheModelDir)
+			}
+			if err := os.Rename(cacheTmpModelDir, cacheModelDir); err != nil {
+				_ = os.RemoveAll(cacheTmpModelDir)
+				return nil, errors.Wrapf(err, "rename cache model dir to %s", cacheModelDir)
+			}
+			sourceModelDir = cacheModelDir
+		}
+
+		if err := os.MkdirAll(filepath.Dir(modelDir), 0755); err != nil {
+			return nil, errors.Wrapf(err, "create mount dir for model: %s", modelDir)
+		}
+		if err := linkModelDir(sourceModelDir, modelDir); err != nil {
+			return nil, err
+		}
+		_, err = worker.sm.Set(statusPath, status.Status{
+			VolumeName:     volumeName,
+			MountID:        mountID,
+			Reference:      reference,
+			ResolvedDigest: resolvedDigest,
+			Reused:         found,
+			State:          status.StatePullSucceeded,
+		})
+		if err != nil {
+			return nil, errors.Wrapf(err, "set model status after linking from cache")
+		}
+		logger.WithContext(ctx).Infof(
+			"linked model from cache: reference=%s digest=%s source=%s target=%s reused=%t",
+			reference, resolvedDigest, sourceModelDir, modelDir, found,
+		)
+		return nil, nil
+	})
 	metrics.NodeOpObserve("pull_image", start, err)
 
 	if err != nil && !errors.Is(err, ErrConflict) {
@@ -143,13 +230,15 @@ func (worker *Worker) PullModel(
 	return err
 }
 
-func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, modelDir string, checkDiskQuota, excludeModelWeights bool, excludeFilePatterns []string) error {
-	setStatus := func(state status.State) (*status.Status, error) {
+func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mountID, reference, resolvedDigest, modelDir string, checkDiskQuota, excludeModelWeights bool, excludeFilePatterns []string) error {
+	setStatus := func(state status.State, reused bool) (*status.Status, error) {
 		status, err := worker.sm.Set(statusPath, status.Status{
-			VolumeName: volumeName,
-			MountID:    mountID,
-			Reference:  reference,
-			State:      state,
+			VolumeName:     volumeName,
+			MountID:        mountID,
+			Reference:      reference,
+			ResolvedDigest: resolvedDigest,
+			Reused:         reused,
+			State:          state,
 		})
 		if err != nil {
 			return nil, errors.Wrapf(err, "set model status")
@@ -194,30 +283,30 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 			diskQuotaChecker = NewDiskQuotaChecker(worker.cfg)
 		}
 		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker)
-		_, err := setStatus(status.StatePullRunning)
+		_, err := setStatus(status.StatePullRunning, false)
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")
 		}
 		if err := puller.Pull(ctx, reference, modelDir, excludeModelWeights, excludeFilePatterns); err != nil {
 			if errors.Is(err, context.Canceled) {
 				err = errors.Wrapf(err, "pull model canceled")
-				if _, err2 := setStatus(status.StatePullCanceled); err2 != nil {
+				if _, err2 := setStatus(status.StatePullCanceled, false); err2 != nil {
 					return nil, errors.Wrapf(err, "set model status: %v", err2)
 				}
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				err = errors.Wrapf(err, "pull model timeout")
-				if _, err2 := setStatus(status.StatePullTimeout); err2 != nil {
+				if _, err2 := setStatus(status.StatePullTimeout, false); err2 != nil {
 					return nil, errors.Wrapf(err, "set model status: %v", err2)
 				}
 			} else {
 				err = errors.Wrapf(err, "pull model failed")
-				if _, err2 := setStatus(status.StatePullFailed); err2 != nil {
+				if _, err2 := setStatus(status.StatePullFailed, false); err2 != nil {
 					return nil, errors.Wrapf(err, "set model status: %v", err2)
 				}
 			}
 			return nil, err
 		}
-		_, err = setStatus(status.StatePullSucceeded)
+		_, err = setStatus(status.StatePullSucceeded, false)
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status after pull model succeeded")
 		}

@@ -57,12 +57,14 @@ func (p *Progress) String() (string, error) {
 }
 
 type Status struct {
-	VolumeName string   `json:"volume_name,omitempty"`
-	MountID    string   `json:"mount_id,omitempty"`
-	Reference  string   `json:"reference,omitempty"`
-	State      State    `json:"state,omitempty"`
-	Inline     bool     `json:"inline,omitempty"`
-	Progress   Progress `json:"progress,omitempty"`
+	VolumeName     string   `json:"volume_name,omitempty"`
+	MountID        string   `json:"mount_id,omitempty"`
+	Reference      string   `json:"reference,omitempty"`
+	ResolvedDigest string   `json:"resolved_digest,omitempty"`
+	Reused         bool     `json:"reused,omitempty"`
+	State          State    `json:"state,omitempty"`
+	Inline         bool     `json:"inline,omitempty"`
+	Progress       Progress `json:"progress,omitempty"`
 }
 
 func NewStatusManager() (*StatusManager, error) {

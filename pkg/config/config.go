@@ -143,6 +143,44 @@ func (cfg *RawConfig) GetCSISockDirForDynamic(volumeName string) string {
 	return filepath.Join(cfg.GetVolumeDirForDynamic(volumeName), "csi")
 }
 
+// /var/lib/dragonfly/model-csi/cache
+func (cfg *RawConfig) GetCacheDir() string {
+	return filepath.Join(cfg.RootDir, "cache")
+}
+
+// /var/lib/dragonfly/model-csi/cache/content
+func (cfg *RawConfig) GetCacheContentRootDir() string {
+	return filepath.Join(cfg.GetCacheDir(), "content")
+}
+
+// /var/lib/dragonfly/model-csi/cache/refs
+func (cfg *RawConfig) GetCacheRefsRootDir() string {
+	return filepath.Join(cfg.GetCacheDir(), "refs")
+}
+
+// splitDigest splits a digest like "sha256:abc..." into ("sha256", "abc...").
+// For inputs without a ":" prefix, the algorithm defaults to "sha256".
+func splitDigest(digest string) (algo string, hex string) {
+	for i := 0; i < len(digest); i++ {
+		if digest[i] == ':' {
+			return digest[:i], digest[i+1:]
+		}
+	}
+	return "sha256", digest
+}
+
+// /var/lib/dragonfly/model-csi/cache/content/$algo/$hex
+func (cfg *RawConfig) GetCacheContentDir(digest string) string {
+	algo, hex := splitDigest(digest)
+	return filepath.Join(cfg.GetCacheContentRootDir(), algo, hex)
+}
+
+// /var/lib/dragonfly/model-csi/cache/refs/$algo/$hex
+func (cfg *RawConfig) GetCacheRefsDir(digest string) string {
+	algo, hex := splitDigest(digest)
+	return filepath.Join(cfg.GetCacheRefsRootDir(), algo, hex)
+}
+
 // /var/lib/dragonfly/model-csi/volumes/$volumeName/csi/csi.sock
 func (cfg *RawConfig) GetCSISockPathForDynamic(volumeName string) string {
 	return filepath.Join(cfg.GetCSISockDirForDynamic(volumeName), "csi.sock")

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
@@ -566,6 +567,13 @@ func TestServer(t *testing.T) {
 			duration: time.Second * 2,
 			hook:     hook,
 		}
+	}
+
+	// Avoid contacting a real registry to resolve manifest digests for the
+	// node-level shared cache: derive a deterministic fake digest from the
+	// reference string itself so tests can run fully offline.
+	service.ResolveCacheDigest = func(_ context.Context, reference string) (string, error) {
+		return "sha256:" + fmt.Sprintf("%x", sha256.Sum256([]byte(reference))), nil
 	}
 
 	ctx := context.TODO()

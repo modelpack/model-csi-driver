@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -59,7 +58,9 @@ func (s *Service) nodeUnPublishVolumeStaticInlineVolume(ctx context.Context, vol
 	}
 
 	sourceVolumeDir := s.cfg.Get().GetVolumeDir(volumeName)
-	if err := os.RemoveAll(sourceVolumeDir); err != nil {
+	// Use SafeRemoveAll: this inline volume's model dir may be a live dedup
+	// source for another in-flight pull.
+	if err := s.worker.SafeRemoveAll(ctx, sourceVolumeDir); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove static inline volume dir").Error())
 	}
 

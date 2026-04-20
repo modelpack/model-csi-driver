@@ -78,7 +78,9 @@ func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, ta
 	}
 
 	sourceVolumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
-	if err := os.RemoveAll(sourceVolumeDir); err != nil {
+	// Use SafeRemoveAll: any models/<mountID>/ subtree may be a live dedup
+	// source for another in-flight pull.
+	if err := s.worker.SafeRemoveAll(ctx, sourceVolumeDir); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove dynamic volume dir").Error())
 	}
 

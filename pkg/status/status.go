@@ -60,9 +60,22 @@ type Status struct {
 	VolumeName string   `json:"volume_name,omitempty"`
 	MountID    string   `json:"mount_id,omitempty"`
 	Reference  string   `json:"reference,omitempty"`
+	Digest     string   `json:"digest,omitempty"`
 	State      State    `json:"state,omitempty"`
 	Inline     bool     `json:"inline,omitempty"`
 	Progress   Progress `json:"progress,omitempty"`
+
+	// ExcludeModelWeights / ExcludeFilePatterns mark this as a partial pull.
+	// Persisted so cross-volume dedup can refuse partial sources for full-pull
+	// requests. Zero values mean a full pull, so legacy status.json files
+	// (without these fields) keep their prior dedup eligibility.
+	ExcludeModelWeights bool     `json:"exclude_model_weights,omitempty"`
+	ExcludeFilePatterns []string `json:"exclude_file_patterns,omitempty"`
+}
+
+// IsFullPull reports whether this status was produced by a non-excluding pull.
+func (s *Status) IsFullPull() bool {
+	return !s.ExcludeModelWeights && len(s.ExcludeFilePatterns) == 0
 }
 
 func NewStatusManager() (*StatusManager, error) {

@@ -68,8 +68,24 @@ func TestIsModelExisted_EmptyDir(t *testing.T) {
 	require.NoError(t, err)
 
 	// volumes dir doesn't exist yet, should return false without error.
-	exists := worker.isModelExisted(context.Background(), "registry/model:v1")
+	exists := worker.isModelExisted(context.Background(), "sha256:abc")
 	require.False(t, exists)
+}
+
+// TestIsModelExisted_EmptyDigest verifies that an empty digest argument
+// short-circuits to false (used as a defensive guard when digest resolution
+// has failed and dedup must be disabled).
+func TestIsModelExisted_EmptyDigest(t *testing.T) {
+	tmpDir := t.TempDir()
+	rawCfg := &config.RawConfig{ServiceName: "test", RootDir: tmpDir}
+	cfg := config.NewWithRaw(rawCfg)
+	sm, err := status.NewStatusManager()
+	require.NoError(t, err)
+
+	worker, err := NewWorker(cfg, sm)
+	require.NoError(t, err)
+
+	require.False(t, worker.isModelExisted(context.Background(), ""))
 }
 
 func TestIsModelExisted_StaticVolumeMatch(t *testing.T) {
@@ -92,11 +108,12 @@ func TestIsModelExisted_StaticVolumeMatch(t *testing.T) {
 	_, err = sm.Set(statusPath, status.Status{
 		VolumeName: volumeName,
 		Reference:  "registry/model:v1",
+		Digest:     "sha256:match",
 		State:      status.StatePullSucceeded,
 	})
 	require.NoError(t, err)
 
-	exists := worker.isModelExisted(context.Background(), "registry/model:v1")
+	exists := worker.isModelExisted(context.Background(), "sha256:match")
 	require.True(t, exists)
 }
 
@@ -119,12 +136,14 @@ func TestIsModelExisted_StaticVolume_NoMatch(t *testing.T) {
 	_, err = sm.Set(statusPath, status.Status{
 		VolumeName: volumeName,
 		Reference:  "registry/other-model:v2",
+		Digest:     "sha256:other",
 		State:      status.StatePullSucceeded,
 	})
 	require.NoError(t, err)
 
-	// Looking for a different reference.
-	exists := worker.isModelExisted(context.Background(), "registry/model:v1")
+	// Looking for a different digest (e.g. "registry/model:v1" resolved
+	// to a different manifest).
+	exists := worker.isModelExisted(context.Background(), "sha256:wanted")
 	require.False(t, exists)
 }
 
@@ -148,11 +167,12 @@ func TestIsModelExisted_DynamicVolume(t *testing.T) {
 	statusPath := filepath.Join(mountIDDir, "status.json")
 	_, err = sm.Set(statusPath, status.Status{
 		Reference: "registry/model:dyn",
+		Digest:    "sha256:dyn",
 		State:     status.StatePullSucceeded,
 	})
 	require.NoError(t, err)
 
-	exists := worker.isModelExisted(context.Background(), "registry/model:dyn")
+	exists := worker.isModelExisted(context.Background(), "sha256:dyn")
 	require.True(t, exists)
 }
 

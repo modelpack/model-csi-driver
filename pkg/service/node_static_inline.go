@@ -25,8 +25,10 @@ func (s *Service) nodePublishVolumeStaticInlineVolume(ctx context.Context, volum
 	duration := time.Since(startedAt)
 	logger.WithContext(ctx).Infof("pulled model: %s %s", reference, duration)
 
+	mountCtx, mountCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer mountCancel()
 	if err := mounter.Mount(
-		ctx,
+		mountCtx,
 		mounter.NewBuilder().
 			Bind().
 			From(modelDir).

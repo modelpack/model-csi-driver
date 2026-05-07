@@ -165,8 +165,10 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 		}
 		defer worker.kmutex.Unlock(contextKey)
 
+		// Decouple from the kubelet RPC deadline so that large pulls aren't killed
+		// when kubelet times out and retries
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithCancel(ctx)
+		ctx, cancel = context.WithCancel(context.WithoutCancel(ctx))
 		worker.contextMap.Set(contextKey, &cancel)
 		defer worker.contextMap.Set(contextKey, nil)
 

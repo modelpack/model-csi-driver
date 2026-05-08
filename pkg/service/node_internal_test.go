@@ -127,6 +127,7 @@ func TestNodeUnpublishVolume_WithMockedMounter(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
 // tokenAuthInterceptor covers the grpc interceptor method
 func TestTokenAuthInterceptor(t *testing.T) {
 	svc, _ := newNodeService(t)
@@ -176,6 +177,36 @@ func TestNodeUnPublishVolumeDynamic_NotMounted(t *testing.T) {
 	resp, err := svc.nodeUnPublishVolumeDynamic(ctx, volumeName, targetPath, false)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+}
+
+// nodeUnPublishVolumeStaticInlineVolume must surface ReleaseVolumeTree errors.
+func TestNodeUnPublishVolumeStaticInlineVolume_ReleaseError(t *testing.T) {
+	svc, _ := newNodeService(t)
+	ctx := context.Background()
+	volumeName := "inline-release-err"
+
+	orig := fsRemoveAll
+	t.Cleanup(func() { fsRemoveAll = orig })
+	fsRemoveAll = func(string) error { return os.ErrPermission }
+
+	resp, err := svc.nodeUnPublishVolumeStaticInlineVolume(ctx, volumeName, t.TempDir(), false)
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
+
+// nodeUnPublishVolumeDynamic must surface ReleaseVolumeTree errors.
+func TestNodeUnPublishVolumeDynamic_ReleaseError(t *testing.T) {
+	svc, _ := newNodeService(t)
+	ctx := context.Background()
+	volumeName := "dynamic-release-err"
+
+	orig := fsRemoveAll
+	t.Cleanup(func() { fsRemoveAll = orig })
+	fsRemoveAll = func(string) error { return os.ErrPermission }
+
+	resp, err := svc.nodeUnPublishVolumeDynamic(ctx, volumeName, t.TempDir(), false)
+	require.Error(t, err)
+	require.Nil(t, resp)
 }
 
 // nodePublishVolumeDynamicForRootMount - covers the early mkdir path

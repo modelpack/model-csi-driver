@@ -28,7 +28,10 @@ func (cfg *Config) watch(path string) {
 				if !ok {
 					return
 				}
-				if (event.Op & (fsnotify.Write | fsnotify.Remove)) != 0 {
+				if event.Name != path {
+					continue
+				}
+				if (event.Op & (fsnotify.Write | fsnotify.Create | fsnotify.Remove | fsnotify.Rename)) != 0 {
 					logger.Logger().Infof("config file changed: %s, event: %s", event.Name, event.Op)
 					cfg.reload(path)
 				}

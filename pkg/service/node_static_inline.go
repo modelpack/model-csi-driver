@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -59,8 +58,8 @@ func (s *Service) nodeUnPublishVolumeStaticInlineVolume(ctx context.Context, vol
 	}
 
 	sourceVolumeDir := s.cfg.Get().GetVolumeDir(volumeName)
-	if err := os.RemoveAll(sourceVolumeDir); err != nil {
-		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove static inline volume dir").Error())
+	if err := s.worker.ReleaseVolumeTree(ctx, sourceVolumeDir); err != nil {
+		return nil, status.Error(codes.Internal, errors.Wrap(err, "release static inline volume dir").Error())
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil

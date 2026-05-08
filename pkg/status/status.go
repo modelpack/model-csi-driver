@@ -57,12 +57,15 @@ func (p *Progress) String() (string, error) {
 }
 
 type Status struct {
-	VolumeName string   `json:"volume_name,omitempty"`
-	MountID    string   `json:"mount_id,omitempty"`
-	Reference  string   `json:"reference,omitempty"`
-	State      State    `json:"state,omitempty"`
-	Inline     bool     `json:"inline,omitempty"`
-	Progress   Progress `json:"progress,omitempty"`
+	VolumeName string `json:"volume_name,omitempty"`
+	MountID    string `json:"mount_id,omitempty"`
+	Reference  string `json:"reference,omitempty"`
+	// CacheKey is the manifest digest when the model was materialized via
+	// the ModelStore. Empty for partial pulls that bypass the store.
+	CacheKey string   `json:"cache_key,omitempty"`
+	State    State    `json:"state,omitempty"`
+	Inline   bool     `json:"inline,omitempty"`
+	Progress Progress `json:"progress,omitempty"`
 }
 
 func NewStatusManager() (*StatusManager, error) {

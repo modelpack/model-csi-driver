@@ -78,8 +78,8 @@ func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, ta
 	}
 
 	sourceVolumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
-	if err := os.RemoveAll(sourceVolumeDir); err != nil {
-		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove dynamic volume dir").Error())
+	if err := s.worker.ReleaseVolumeTree(ctx, sourceVolumeDir); err != nil {
+		return nil, status.Error(codes.Internal, errors.Wrap(err, "release dynamic volume dir").Error())
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil

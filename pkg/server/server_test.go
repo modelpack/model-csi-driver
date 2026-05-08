@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -357,6 +359,7 @@ func testDynamicVolume(t *testing.T, ctx context.Context, cfg *config.Config, se
 	require.NoError(t, err)
 	for idx := range mounts {
 		mounts[idx].Progress = status.Progress{}
+		mounts[idx].CacheKey = ""
 	}
 	require.Equal(t, []status.Status{
 		{
@@ -399,6 +402,7 @@ func testDynamicVolume(t *testing.T, ctx context.Context, cfg *config.Config, se
 	require.NoError(t, err)
 	for idx := range mounts {
 		mounts[idx].Progress = status.Progress{}
+		mounts[idx].CacheKey = ""
 	}
 	require.Equal(t, []status.Status{
 		{
@@ -566,6 +570,10 @@ func TestServer(t *testing.T) {
 			duration: time.Second * 2,
 			hook:     hook,
 		}
+	}
+	service.ResolveDigest = func(_ context.Context, reference string) (string, error) {
+		sum := sha256.Sum256([]byte(fmt.Sprintf("%s-%d", reference, time.Now().UnixNano())))
+		return "sha256:" + hex.EncodeToString(sum[:]), nil
 	}
 
 	ctx := context.TODO()

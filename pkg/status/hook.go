@@ -171,6 +171,41 @@ func (h *Hook) AfterPullLayer(desc ocispec.Descriptor, err error) {
 	progress.Span.End()
 }
 
+// LayerCached records a layer as successfully pulled without emitting
+// duplicate network metrics or "pulled layer" logs. This ensures status totals
+// remain accurate for waiting callers without spamming observability.
+func (h *Hook) LayerCached(desc ocispec.Descriptor, manifest ocispec.Manifest) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	filePath := ""
+	if desc.Annotations != nil {
+		if desc.Annotations[modelspec.AnnotationFilepath] != "" {
+			filePath = fmt.Sprintf("/%s", desc.Annotations[modelspec.AnnotationFilepath])
+		} else if desc.Annotations[oldModelspec.AnnotationFilepath] != "" {
+			filePath = fmt.Sprintf("/%s", desc.Annotations[oldModelspec.AnnotationFilepath])
+		}
+	}
+
+	h.manifest = &manifest
+
+	_, span := tracing.Tracer.Start(h.ctx, "PullLayerCached")
+	span.End()
+
+	now := time.Now()
+	h.progress[desc.Digest] = &ProgressItem{
+		Digest:     desc.Digest,
+		Path:       filePath,
+		Size:       desc.Size,
+		StartedAt:  now,
+		FinishedAt: &now,
+		Error:      nil,
+		Span:       span,
+	}
+
+	h.pulled.Add(1)
+}
+
 func (h *Hook) getProgress() Progress {
 	items := []ProgressItem{}
 	for _, item := range h.progress {

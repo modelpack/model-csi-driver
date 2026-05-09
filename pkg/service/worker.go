@@ -57,17 +57,32 @@ type Worker struct {
 	inflight   singleflight.Group
 	contextMap *ContextMap
 	kmutex     kmutex.KeyedLocker
+	layerCache *LayerCache
 }
 
 func NewWorker(cfg *config.Config, sm *status.StatusManager) (*Worker, error) {
-	return &Worker{
+	return NewWorkerWithLayerCache(cfg, sm, nil)
+}
+
+func NewWorkerWithLayerCache(cfg *config.Config, sm *status.StatusManager, lc *LayerCache) (*Worker, error) {
+	w := &Worker{
 		cfg:        cfg,
 		newPuller:  NewPuller,
 		sm:         sm,
 		inflight:   singleflight.Group{},
 		contextMap: NewContextMap(),
 		kmutex:     kmutex.New(),
-	}, nil
+		layerCache: lc,
+	}
+
+	// When a LayerCache is provided, use the layer-aware puller.
+	if lc != nil {
+		w.newPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
+			return NewLayerAwarePuller(ctx, pullCfg, hook, diskQuotaChecker, lc)
+		}
+	}
+
+	return w, nil
 }
 
 func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volumeName, mountID string) error {
@@ -102,6 +117,12 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 
 		statusPath := filepath.Join(volumeDir, "status.json")
 		worker.sm.HookManager.Delete(statusPath)
+
+		// Evict stale layer cache entries for the removed volume.
+		if worker.layerCache != nil {
+			worker.layerCache.RemoveByPrefix(volumeDir)
+			logger.WithContext(ctx).Infof("evicted layer cache entries for %s", volumeDir)
+		}
 
 		return nil, nil
 	})

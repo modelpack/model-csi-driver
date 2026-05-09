@@ -71,7 +71,13 @@ func New(cfg *config.Config) (*Service, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "create status manager")
 		}
-		worker, err := NewWorker(cfg, sm)
+
+		// Create the node-level layer cache for layer deduplication.
+		lc := NewLayerCache(defaultMaxConcurrentLayers)
+		// Rebuild cache from existing volumes on disk (handles restarts).
+		lc.Rebuild(cfg.Get(), sm)
+
+		worker, err := NewWorkerWithLayerCache(cfg, sm, lc)
 		if err != nil {
 			return nil, errors.Wrap(err, "create worker")
 		}

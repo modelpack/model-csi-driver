@@ -77,6 +77,18 @@ func (s *Service) nodeUnPublishVolumeDynamic(ctx context.Context, volumeName, ta
 		}
 	}
 
+	// Defensive: if per-mount DeleteVolume calls didn't arrive before the
+	// dynamic root was unpublished, release any leftover refs here.
+	modelsDir := s.cfg.Get().GetModelsDirForDynamic(volumeName)
+	if entries, err := os.ReadDir(modelsDir); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			s.worker.ReleaseRefs(ctx, volumeName, e.Name())
+		}
+	}
+
 	sourceVolumeDir := s.cfg.Get().GetVolumeDirForDynamic(volumeName)
 	if err := os.RemoveAll(sourceVolumeDir); err != nil {
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove dynamic volume dir").Error())

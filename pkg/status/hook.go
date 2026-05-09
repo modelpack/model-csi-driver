@@ -104,7 +104,7 @@ func (h *Hook) SetTotal(total int) {
 	h.total = total
 }
 
-func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest) {
+func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest) bool {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -134,9 +134,13 @@ func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifes
 		Error:      nil,
 		Span:       span,
 	}
+	return false
 }
 
-func (h *Hook) AfterPullLayer(desc ocispec.Descriptor, err error) {
+// AfterPullLayer is invoked after every layer pull attempt. The skipped
+// argument indicates whether BeforePullLayer requested the layer to be
+// skipped (e.g. because it was already present in the CAS cache).
+func (h *Hook) AfterPullLayer(desc ocispec.Descriptor, skipped bool, err error) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 

@@ -64,7 +64,7 @@ func (puller *mockPuller) Pull(
 			})
 			fileName := fmt.Sprintf("model-%d.safetensor", i)
 			err := os.WriteFile(filepath.Join(targetDir, fileName), []byte(fmt.Sprintf("test-%d", i)), 0644)
-			puller.hook.AfterPullLayer(layerDesc, err)
+			puller.hook.AfterPullLayer(layerDesc, false, err)
 			return err
 		})
 	}
@@ -560,7 +560,7 @@ func TestServer(t *testing.T) {
 	cfg.Get().PullConfig.ProxyURL = ""
 	service.CacheScanInterval = 1 * time.Second
 
-	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker) service.Puller {
+	service.NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *service.DiskQuotaChecker, deps service.PullerDeps) service.Puller {
 		return &mockPuller{
 			pullCfg:  pullCfg,
 			duration: time.Second * 2,

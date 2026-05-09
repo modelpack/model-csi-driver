@@ -127,6 +127,7 @@ func TestNodeUnpublishVolume_WithMockedMounter(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
 // tokenAuthInterceptor covers the grpc interceptor method
 func TestTokenAuthInterceptor(t *testing.T) {
 	svc, _ := newNodeService(t)
@@ -173,6 +174,24 @@ func TestNodeUnPublishVolumeDynamic_NotMounted(t *testing.T) {
 	// Paths don't exist: IsInSameDevice will error (warning logged), sameDevice=false
 	// UMount on sourceCSIDir will be called and its "not mounted"-style error swallowed
 	// RemoveAll on non-existent sourceVolumeDir is a no-op
+	resp, err := svc.nodeUnPublishVolumeDynamic(ctx, volumeName, targetPath, false)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+}
+
+// nodeUnPublishVolumeDynamic with per-mount dirs present: exercises the
+// defensive ReleaseRefs loop and the non-dir entry skip.
+func TestNodeUnPublishVolumeDynamic_WithMounts(t *testing.T) {
+	svc, _ := newNodeService(t)
+	ctx := context.Background()
+	volumeName := "dynamic-with-mounts"
+	targetPath := t.TempDir()
+
+	modelsDir := svc.cfg.Get().GetModelsDirForDynamic(volumeName)
+	require.NoError(t, os.MkdirAll(filepath.Join(modelsDir, "m1"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(modelsDir, "m2"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(modelsDir, "stray"), []byte("x"), 0o644))
+
 	resp, err := svc.nodeUnPublishVolumeDynamic(ctx, volumeName, targetPath, false)
 	require.NoError(t, err)
 	require.NotNil(t, resp)

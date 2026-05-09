@@ -63,5 +63,9 @@ func (s *Service) nodeUnPublishVolumeStaticInlineVolume(ctx context.Context, vol
 		return nil, status.Error(codes.Internal, errors.Wrapf(err, "remove static inline volume dir").Error())
 	}
 
+	// Inline volumes never receive DeleteVolume from K8s; release CAS refs
+	// here so blobs don't leak.
+	s.worker.ReleaseRefs(ctx, volumeName, "")
+
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }

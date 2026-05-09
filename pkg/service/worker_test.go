@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/modelpack/model-csi-driver/pkg/cas"
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/status"
 	"github.com/stretchr/testify/require"
@@ -53,6 +54,19 @@ func TestNewWorker(t *testing.T) {
 	worker, err := NewWorker(cfg, sm)
 	require.NoError(t, err)
 	require.NotNil(t, worker)
+}
+
+// NewWorker must propagate cas.NewStore failure (storage path is a regular file).
+func TestNewWorker_CASInitFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "storage"), []byte("x"), 0o644))
+	rawCfg := &config.RawConfig{ServiceName: "test", RootDir: tmpDir}
+	cfg := config.NewWithRaw(rawCfg)
+	sm, err := status.NewStatusManager()
+	require.NoError(t, err)
+
+	_, err = NewWorker(cfg, sm)
+	require.Error(t, err)
 }
 
 // ─── isModelExisted ───────────────────────────────────────────────────────────
@@ -154,6 +168,44 @@ func TestIsModelExisted_DynamicVolume(t *testing.T) {
 
 	exists := worker.isModelExisted(context.Background(), "registry/model:dyn")
 	require.True(t, exists)
+}
+
+// ─── ReleaseRefs ──────────────────────────────────────────────────────────────
+
+func TestReleaseRefs_NilCAS_NoOp(t *testing.T) {
+	w := &Worker{}
+	w.ReleaseRefs(context.Background(), "vol", "")
+}
+
+func TestReleaseRefs_DropsOwnerRef(t *testing.T) {
+	tmpDir := t.TempDir()
+	rawCfg := &config.RawConfig{ServiceName: "test", RootDir: tmpDir}
+	cfg := config.NewWithRaw(rawCfg)
+	sm, err := status.NewStatusManager()
+	require.NoError(t, err)
+
+	worker, err := NewWorker(cfg, sm)
+	require.NoError(t, err)
+
+	// Seed a real blob through the full EnsureLink + Import path so the ref
+	// file is left in a state identical to production.
+	ownerKey := cas.OwnerKey("vol", "m1")
+	dst := filepath.Join(t.TempDir(), "f.bin")
+	hit, err := worker.cas.EnsureLink(context.Background(), ownerKey, "sha256:abc", dst)
+	require.NoError(t, err)
+	require.False(t, hit)
+	require.NoError(t, os.WriteFile(dst, []byte("BLOB"), 0o644))
+	require.NoError(t, worker.cas.Import(context.Background(), "sha256:abc", dst))
+
+	n, err := worker.cas.RefCount("sha256:abc")
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	worker.ReleaseRefs(context.Background(), "vol", "m1")
+	n, err = worker.cas.RefCount("sha256:abc")
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
+	require.False(t, worker.cas.Has("sha256:abc"))
 }
 
 // ─── DeleteModel ──────────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/pkg/kmutex"
+	"github.com/modelpack/model-csi-driver/pkg/cas"
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/modelpack/model-csi-driver/pkg/metrics"
@@ -52,18 +53,24 @@ func (cm *ContextMap) Get(key string) *context.CancelFunc {
 
 type Worker struct {
 	cfg        *config.Config
-	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller
+	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker, deps PullerDeps) Puller
 	sm         *status.StatusManager
+	cas        *cas.Store
 	inflight   singleflight.Group
 	contextMap *ContextMap
 	kmutex     kmutex.KeyedLocker
 }
 
 func NewWorker(cfg *config.Config, sm *status.StatusManager) (*Worker, error) {
+	store, err := cas.NewStore(cfg.Get().GetStorageDir())
+	if err != nil {
+		return nil, errors.Wrap(err, "create cas store")
+	}
 	return &Worker{
 		cfg:        cfg,
 		newPuller:  NewPuller,
 		sm:         sm,
+		cas:        store,
 		inflight:   singleflight.Group{},
 		contextMap: NewContextMap(),
 		kmutex:     kmutex.New(),
@@ -100,6 +107,16 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 		}
 		logger.WithContext(ctx).Infof("removed volume dir: %s", volumeDir)
 
+		// Drop CAS refs so unused blobs become eligible for reclamation.
+		// Errors are logged but non-fatal: the volume dir is already gone
+		// and stale refs get cleaned up on subsequent releases.
+		if worker.cas != nil {
+			ownerKey := cas.OwnerKey(volumeName, mountID)
+			if err := worker.cas.ReleaseAll(context.Background(), ownerKey); err != nil {
+				logger.WithContext(ctx).WithError(err).Warnf("release cas refs for owner %s", ownerKey)
+			}
+		}
+
 		statusPath := filepath.Join(volumeDir, "status.json")
 		worker.sm.HookManager.Delete(statusPath)
 
@@ -116,6 +133,19 @@ func (worker *Worker) DeleteModel(ctx context.Context, isStaticVolume bool, volu
 	metrics.NodeOpObserve("delete_image", start, err)
 
 	return err
+}
+
+// ReleaseRefs drops CAS refs for (volumeName, mountID). Used by
+// NodeUnpublishVolume paths (inline / dynamic root) where K8s never sends
+// DeleteVolume. Safe with no refs and with cas == nil.
+func (worker *Worker) ReleaseRefs(ctx context.Context, volumeName, mountID string) {
+	if worker.cas == nil {
+		return
+	}
+	ownerKey := cas.OwnerKey(volumeName, mountID)
+	if err := worker.cas.ReleaseAll(ctx, ownerKey); err != nil {
+		logger.WithContext(ctx).WithError(err).Warnf("release cas refs for owner %s", ownerKey)
+	}
 }
 
 func (worker *Worker) PullModel(
@@ -193,7 +223,11 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 		if checkDiskQuota {
 			diskQuotaChecker = NewDiskQuotaChecker(worker.cfg)
 		}
-		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker)
+		deps := PullerDeps{
+			CAS:      worker.cas,
+			OwnerKey: cas.OwnerKey(volumeName, mountID),
+		}
+		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker, deps)
 		_, err := setStatus(status.StatePullRunning)
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")

@@ -8,28 +8,31 @@ import (
 
 	"github.com/modelpack/modctl/pkg/backend"
 	modctlConfig "github.com/modelpack/modctl/pkg/config"
+	"github.com/modelpack/model-csi-driver/pkg/cas"
 	"github.com/modelpack/model-csi-driver/pkg/config"
 	"github.com/modelpack/model-csi-driver/pkg/config/auth"
 	"github.com/modelpack/model-csi-driver/pkg/logger"
 	"github.com/modelpack/model-csi-driver/pkg/status"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
-
-type PullHook interface {
-	BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest)
-	AfterPullLayer(desc ocispec.Descriptor, err error)
-}
 
 type Puller interface {
 	Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string) error
 }
 
-var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
+// PullerDeps bundles optional dependencies that the worker plumbs into each
+// puller instance.
+type PullerDeps struct {
+	CAS      *cas.Store
+	OwnerKey string
+}
+
+var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker, deps PullerDeps) Puller {
 	return &puller{
 		pullCfg:          pullCfg,
 		hook:             hook,
 		diskQuotaChecker: diskQuotaChecker,
+		deps:             deps,
 	}
 }
 
@@ -37,6 +40,17 @@ type puller struct {
 	pullCfg          *config.PullConfig
 	hook             *status.Hook
 	diskQuotaChecker *DiskQuotaChecker
+	deps             PullerDeps
+}
+
+// wrapHooks composes the inner status.Hook with the CAS hook adapter when a
+// store is configured. The returned value implements modctl's PullHooks
+// interface and so satisfies both pull / fetch configurations.
+func (p *puller) wrapHooks(ctx context.Context, extractDir string) cas.PullHooks {
+	if p.deps.CAS == nil || p.deps.OwnerKey == "" {
+		return p.hook
+	}
+	return cas.NewPullHook(ctx, p.deps.CAS, p.hook, p.deps.OwnerKey, extractDir)
 }
 
 func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string) error {
@@ -72,7 +86,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 		pullConfig.Insecure = true
 		pullConfig.ExtractDir = targetDir
 		pullConfig.ExtractFromRemote = true
-		pullConfig.Hooks = p.hook
+		pullConfig.Hooks = p.wrapHooks(ctx, targetDir)
 		pullConfig.ProgressWriter = io.Discard
 		pullConfig.DisableProgress = true
 
@@ -107,7 +121,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 	fetchConfig.DragonflyEndpoint = p.pullCfg.DragonflyEndpoint
 	fetchConfig.Insecure = true
 	fetchConfig.Output = targetDir
-	fetchConfig.Hooks = p.hook
+	fetchConfig.Hooks = p.wrapHooks(ctx, targetDir)
 	fetchConfig.ProgressWriter = io.Discard
 	fetchConfig.DisableProgress = true
 	fetchConfig.Patterns = patterns

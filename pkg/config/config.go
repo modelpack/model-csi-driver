@@ -103,6 +103,11 @@ func (cfg *RawConfig) ParameterKeyExcludeFilePatterns() string {
 	return cfg.ServiceName + "/exclude-file-patterns"
 }
 
+// GetStorageDir returns the CAS root: <root>/storage.
+func (cfg *RawConfig) GetStorageDir() string {
+	return filepath.Join(cfg.RootDir, "storage")
+}
+
 // /var/lib/dragonfly/model-csi/volumes
 func (cfg *RawConfig) GetVolumesDir() string {
 	return filepath.Join(cfg.RootDir, "volumes")

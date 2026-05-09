@@ -30,7 +30,7 @@ func newWorkerWithMockPuller(t *testing.T, pullErr error) *Worker {
 	worker, err := NewWorker(cfg, sm)
 	require.NoError(t, err)
 
-	worker.newPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
+	worker.newPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker, deps PullerDeps) Puller {
 		return &mockPuller{err: pullErr}
 	}
 	return worker

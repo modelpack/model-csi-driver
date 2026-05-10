@@ -16,6 +16,9 @@ config:
   #   # Number of concurrent downloads.
   #   concurrency: 5
   #
+  #   # Maximum number of concurrent layer pulls across all volumes.
+  #   node_layer_concurrency: 0
+  #
   #   # Path to the directory containing Docker config.json file.
   #   # Defaults to /root/.docker
   #   docker_config_dir: ""

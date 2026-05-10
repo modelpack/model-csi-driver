@@ -17,19 +17,20 @@ import (
 )
 
 type PullHook interface {
-	BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest)
-	AfterPullLayer(desc ocispec.Descriptor, err error)
+	BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest) bool
+	AfterPullLayer(desc ocispec.Descriptor, skipped bool, err error)
 }
 
 type Puller interface {
 	Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string) error
 }
 
-var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller {
+var NewPuller = func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker, layerCache *LayerCache) Puller {
 	return &puller{
 		pullCfg:          pullCfg,
 		hook:             hook,
 		diskQuotaChecker: diskQuotaChecker,
+		layerCache:       layerCache,
 	}
 }
 
@@ -37,6 +38,17 @@ type puller struct {
 	pullCfg          *config.PullConfig
 	hook             *status.Hook
 	diskQuotaChecker *DiskQuotaChecker
+	layerCache       *LayerCache
+}
+
+// combinedHook returns a PullHooks that drives both the status.Hook (progress
+// reporting) and the LayerCache (layer-level dedup via hardlinks).
+func (p *puller) combinedHook(ctx context.Context, targetDir string) modctlConfig.PullHooks {
+	var lcHook *layerCacheHook
+	if p.layerCache != nil {
+		lcHook = newLayerCacheHook(ctx, p.layerCache, targetDir)
+	}
+	return &combinedHook{status: p.hook, lc: lcHook}
 }
 
 func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeModelWeights bool, excludeFilePatterns []string) error {
@@ -72,7 +84,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 		pullConfig.Insecure = true
 		pullConfig.ExtractDir = targetDir
 		pullConfig.ExtractFromRemote = true
-		pullConfig.Hooks = p.hook
+		pullConfig.Hooks = p.combinedHook(ctx, targetDir)
 		pullConfig.ProgressWriter = io.Discard
 		pullConfig.DisableProgress = true
 
@@ -107,7 +119,7 @@ func (p *puller) Pull(ctx context.Context, reference, targetDir string, excludeM
 	fetchConfig.DragonflyEndpoint = p.pullCfg.DragonflyEndpoint
 	fetchConfig.Insecure = true
 	fetchConfig.Output = targetDir
-	fetchConfig.Hooks = p.hook
+	fetchConfig.Hooks = p.combinedHook(ctx, targetDir)
 	fetchConfig.ProgressWriter = io.Discard
 	fetchConfig.DisableProgress = true
 	fetchConfig.Patterns = patterns

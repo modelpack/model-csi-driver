@@ -104,7 +104,7 @@ func (h *Hook) SetTotal(total int) {
 	h.total = total
 }
 
-func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest) {
+func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifest) bool {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -134,9 +134,11 @@ func (h *Hook) BeforePullLayer(desc ocispec.Descriptor, manifest ocispec.Manifes
 		Error:      nil,
 		Span:       span,
 	}
+
+	return false
 }
 
-func (h *Hook) AfterPullLayer(desc ocispec.Descriptor, err error) {
+func (h *Hook) AfterPullLayer(desc ocispec.Descriptor, skipped bool, err error) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -155,9 +157,13 @@ func (h *Hook) AfterPullLayer(desc ocispec.Descriptor, err error) {
 		finishedAt = &now
 		h.pulled.Add(1)
 		duration := time.Since(progress.StartedAt)
+		action := "pulled"
+		if skipped {
+			action = "reused"
+		}
 		logger.WithContext(h.ctx).Infof(
-			"pulled layer: %s %s %s %s (%s) %s",
-			desc.MediaType, progress.Digest, progress.Path, humanize.Bytes(uint64(progress.Size)), h.getProgressDesc(), duration,
+			"%s layer: %s %s %s %s (%s) %s",
+			action, desc.MediaType, progress.Digest, progress.Path, humanize.Bytes(uint64(progress.Size)), h.getProgressDesc(), duration,
 		)
 	}
 

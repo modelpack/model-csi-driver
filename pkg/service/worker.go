@@ -52,14 +52,22 @@ func (cm *ContextMap) Get(key string) *context.CancelFunc {
 
 type Worker struct {
 	cfg        *config.Config
-	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker) Puller
+	newPuller  func(ctx context.Context, pullCfg *config.PullConfig, hook *status.Hook, diskQuotaChecker *DiskQuotaChecker, layerCache *LayerCache) Puller
 	sm         *status.StatusManager
 	inflight   singleflight.Group
 	contextMap *ContextMap
 	kmutex     kmutex.KeyedLocker
+	layerCache *LayerCache
 }
 
 func NewWorker(cfg *config.Config, sm *status.StatusManager) (*Worker, error) {
+	layerCache := NewLayerCache(cfg)
+	// Best-effort rebuild of the in-memory index from previously persisted
+	// layers.json files. Failure here only degrades dedup hit rate, never
+	// correctness, so we log and continue.
+	if err := layerCache.Rebuild(context.Background()); err != nil {
+		logger.Logger().WithError(err).Warnf("rebuild layer cache")
+	}
 	return &Worker{
 		cfg:        cfg,
 		newPuller:  NewPuller,
@@ -67,6 +75,7 @@ func NewWorker(cfg *config.Config, sm *status.StatusManager) (*Worker, error) {
 		inflight:   singleflight.Group{},
 		contextMap: NewContextMap(),
 		kmutex:     kmutex.New(),
+		layerCache: layerCache,
 	}, nil
 }
 
@@ -99,6 +108,12 @@ func (worker *Worker) deleteModel(ctx context.Context, isStaticVolume bool, volu
 			return nil, errors.Wrapf(err, "retry remove volume dir: %s", volumeDir)
 		}
 		logger.WithContext(ctx).Infof("removed volume dir: %s", volumeDir)
+
+		if worker.layerCache != nil {
+			// volumeDir is the per-mount dir for dynamic volumes already, so a
+			// single OnVolumeRemoved is sufficient for both modes.
+			worker.layerCache.OnVolumeRemoved(volumeDir)
+		}
 
 		statusPath := filepath.Join(volumeDir, "status.json")
 		worker.sm.HookManager.Delete(statusPath)
@@ -193,7 +208,7 @@ func (worker *Worker) pullModel(ctx context.Context, statusPath, volumeName, mou
 		if checkDiskQuota {
 			diskQuotaChecker = NewDiskQuotaChecker(worker.cfg)
 		}
-		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker)
+		puller := worker.newPuller(ctx, &worker.cfg.Get().PullConfig, hook, diskQuotaChecker, worker.layerCache)
 		_, err := setStatus(status.StatePullRunning)
 		if err != nil {
 			return nil, errors.Wrapf(err, "set status before pull model")

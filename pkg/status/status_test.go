@@ -186,7 +186,7 @@ func TestHook_BeforeAndAfterPullLayer_Success(t *testing.T) {
 	require.Len(t, p.Items, 1)
 	require.Nil(t, p.Items[0].FinishedAt)
 
-	h.AfterPullLayer(desc, nil)
+	h.AfterPullLayer(desc, false, nil)
 
 	p = h.GetProgress()
 	require.Len(t, p.Items, 1)
@@ -203,7 +203,7 @@ func TestHook_AfterPullLayer_WithError(t *testing.T) {
 	}
 	manifest := ocispec.Manifest{}
 	h.BeforePullLayer(desc, manifest)
-	h.AfterPullLayer(desc, os.ErrInvalid)
+	h.AfterPullLayer(desc, false, os.ErrInvalid)
 
 	p := h.GetProgress()
 	require.Len(t, p.Items, 1)
@@ -215,7 +215,7 @@ func TestHook_AfterPullLayer_UnknownDigest(t *testing.T) {
 	h := NewHook(context.Background())
 	desc := ocispec.Descriptor{Digest: digest.Digest("sha256:unknown")}
 	// Should not panic.
-	h.AfterPullLayer(desc, nil)
+	h.AfterPullLayer(desc, false, nil)
 }
 
 func TestHook_GetProgress_Sorted(t *testing.T) {

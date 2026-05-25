@@ -63,7 +63,8 @@ type PullConfig struct {
 	DockerConfigDir           string `yaml:"docker_config_dir"`
 	ProxyURL                  string `yaml:"proxy_url"`
 	DragonflyEndpoint         string `yaml:"dragonfly_endpoint"`
-	Concurrency               uint   `yaml:"concurrency"`
+	Concurrency               uint   `yaml:"concurrency"`            // per-pull layer download parallelism
+	NodeLayerConcurrency      uint   `yaml:"node_layer_concurrency"` // node-wide max concurrent layer pulls across all volumes
 	PullLayerTimeoutInSeconds uint   `yaml:"pull_layer_timeout_in_seconds"`
 }
 

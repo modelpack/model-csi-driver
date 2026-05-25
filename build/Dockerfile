@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM golang:1.24 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
 COPY . .
-RUN make -e GOARCH=${TARGETARCH} release
+RUN GOPROXY=https://goproxy.io,direct make -e GOARCH=${TARGETARCH} release
 
 FROM ubuntu:24.04
 COPY --from=builder /app/model-csi-driver /usr/bin/model-csi-driver

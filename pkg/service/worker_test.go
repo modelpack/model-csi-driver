@@ -55,6 +55,19 @@ func TestNewWorker(t *testing.T) {
 	require.NotNil(t, worker)
 }
 
+func TestNewWorker_RebuildErrorStillSucceeds(t *testing.T) {
+	tmpDir := t.TempDir()
+	rawCfg := &config.RawConfig{ServiceName: "test", RootDir: tmpDir}
+	cfg := config.NewWithRaw(rawCfg)
+	require.NoError(t, os.WriteFile(cfg.Get().GetVolumesDir(), []byte("not a directory"), 0644))
+	sm, err := status.NewStatusManager()
+	require.NoError(t, err)
+
+	worker, err := NewWorker(cfg, sm)
+	require.NoError(t, err)
+	require.NotNil(t, worker)
+}
+
 // ─── isModelExisted ───────────────────────────────────────────────────────────
 
 func TestIsModelExisted_EmptyDir(t *testing.T) {
